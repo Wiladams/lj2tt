@@ -3,7 +3,8 @@ package.path = "../?.lua;"..package.path;
 local OTReader = require("lj2tt.OTReader")
 local mmap = require("lj2tt.mmap_win32")
 
-local ffile = mmap("FontAwesome.ttf")
+--local ffile = mmap("resources/FontAwesome.ttf")
+local ffile = mmap("resources/exo.extra-light-italic.otf")
 
 local function printFontOffsetTables(font)
     for key, tbl in pairs(font.offsetTable.entries) do
