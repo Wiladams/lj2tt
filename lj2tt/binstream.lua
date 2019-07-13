@@ -377,6 +377,7 @@ function binstream.readF2Dot14(self)
 end
 
 function binstream.readDate(self)
+    return self:readUInt64();
     --var macTime = this.getUint32() * 0x100000000 + this.getUint32();
     --var utcTime = macTime * 1000 + Date.UTC(1904, 1, 1);
     --return new Date(utcTime);

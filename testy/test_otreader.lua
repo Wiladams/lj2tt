@@ -13,9 +13,21 @@ local function printFontOffsetTables(font)
     end
 end
 
+local function print_table_head(tbl)
+    print("==== print_table_head ====", tbl)
+    print(string.format("magicNumber: 0x%8X", tbl.magicNumber))
+    print("flags: ", string.format("0x%04x", tbl.flags))
+    print("macStyle: ", tbl.macStyle)
+    print("unitsPerEm: ", tbl.unitsPerEm)
+    print("fontDirectionHint: ", tbl.fontDirectionHint)
+    print("indexToLocFormat: ", tbl.indexToLocFormat)
+    print("glyphDataFormat: ", tbl.glyphDataFormat)
+end
+
 local function printFont(font)
     print("numTables: ", font.offsetTable.numTables)
     printFontOffsetTables(font)
+    print_table_head(font.offsetTable.entries['head'])
 end
 
 local function test_reader()

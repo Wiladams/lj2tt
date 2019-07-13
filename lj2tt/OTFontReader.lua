@@ -10,6 +10,7 @@ The reader will generate a OTFont object, it is NOT a OTFont object
 itself.  You can call OTFontReader:createFromStream(stream)
 and you'll get back a OTFont, or nil.
 --]]
+local OTTableReader = require("lj2tt.OTTableReader")
 
 local OTFontReader = {}
 local OTFontReader_mt = {
@@ -27,11 +28,41 @@ function OTFontReader.new(self, params)
     return self:init(params)
 end
 
+local function parseTable(stream, toc, name, force)
+    local entry = toc[name]
+    if not entry then
+        return false, 'could not find table in toc'
+    end
+
+    local reader = OTTableReader[entry.tag]
+    if not reader then
+        return false, 'could not find table reader'
+    end
+
+    local substream = stream:range(entry.length, entry.offset)
+
+    local res, err = reader(substream, toc, entry)
+    entry.PARSED = true;
+
+    return entry
+end
+
 function OTFontReader.createFontFromStream(self, stream)
     local font = OTFontReader:new()
 
     font.offsetTable = self:readOffsetTable(stream)
 
+    -- Now that we have the table of contents, we want to 
+    -- parse the data that's in each individual table
+    -- as some tables are dependent on others, parse the 
+    -- independent tables first
+    parseTable(stream, font.offsetTable.entries, 'head', true)
+    --parseTable(stream, font.offsetTable, 'maxp', true)
+    --parseTable(stream, font.offsetTable, 'hhea', true)
+    --parseTable(stream, font.offsetTable, 'name', true)
+
+    -- Now that we have the independent tables, we can parse
+    -- the rest of the tables
 
     return font
 end

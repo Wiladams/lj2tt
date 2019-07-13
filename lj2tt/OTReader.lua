@@ -4,6 +4,22 @@
 local binstream = require("lj2tt.binstream")
 local OTFontReader = require("lj2tt.OTFontReader")
 
+--[[
+local function isfont(font)
+    -- check the version number
+    if (stbtt_tag4(font, '1',0,0,0))  then return 1; end -- TrueType 1
+    if (stbtt_tag4(font, 0,1,0,0)) then return true; end -- OpenType 1.0
+    
+    return false;
+ end
+--]]
+
+local FileSignatures = {
+    typ1 = "TrueType with type 1 font";
+    OTTO = "OpenType with CFF";
+    ["true"] = "Apple specification for TrueType fonts";
+}
+
 local OTReader = {}
 local OTReader_mt = {
     __index = OTReader;
