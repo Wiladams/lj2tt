@@ -12,32 +12,6 @@ The intention is that other code, which needs to do
 things with the low level data, will use this file
 to parse into a font object, and do whatever they 
 need to elsewhere.
-
-Origin: 
-    https://github.com/nothings/stb
-    https://raw.githubusercontent.com/nothings/stb/master/stb_truetype.h
-
-The code here was originally inspired by the stb_trutype.h file.
-Not much remains of the original code, as everything was reexamined, 
-and rewritten from the ground up in a Lua sort of way.
-
-
-More Reference material for the curious
-Apple Reference docs
-https://developer.apple.com/fonts/TrueType-Reference-Manual/
-Microsoft Reference docs
-https://docs.microsoft.com/en-us/typography/opentype/spec/font-file
-
-Let's Read a TrueType Font
-http://stevehanov.ca/blog/index.php?id=143
-
-Implementations
-https://github.com/photopea/Typr.js
-https://opentype.js.org/
-
-Other references
-https://github.com/Jolg42/awesome-typography
-
 --]]
 
 

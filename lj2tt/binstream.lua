@@ -283,6 +283,19 @@ function binstream.readString(self, n)
     return str;
 end
 
+-- read a 4 character tag, and return it
+-- as a string.  If the amount remaining is
+-- less than 4, then return nil
+function binstream.readTag(self)
+    if self:remaining() < 4 then
+        return nil, 'not enough characters remain'
+    end
+
+    local str = ffi.string(self.data+self.cursor, 4)
+    self:skip(4)
+
+    return str
+end
 
 
 function binstream.readNumber(self, n)
@@ -351,6 +364,24 @@ function binstream.readUInt64(self)
 
     return v;
 end
+
+-- Some various fixed formats
+function binstream.readFixed(self)
+    -- return self:readInt32 / bleft(1,16)
+    return self:readInt32() / 65535
+end
+
+function binstream.readF2Dot14(self)
+    --return self:readInt16() / bleft(1, 14)
+    return self:readInt16() / 16384;
+end
+
+function binstream.readDate(self)
+    --var macTime = this.getUint32() * 0x100000000 + this.getUint32();
+    --var utcTime = macTime * 1000 + Date.UTC(1904, 1, 1);
+    --return new Date(utcTime);
+end
+
 
 --[[
     Writing to a binary stream
@@ -438,17 +469,7 @@ function binstream.writeUInt64(self, n)
     return self:writeInt(ffi.cast("uint64_t",n), 8);
 end
 
--- Some various fixed formats
-function binstream.readFixed(self)
-    local decimal = self:readInt16();
-    local fraction = self:readUInt16();
 
-    return decimal + fraction / 65535;
-end
-
-function binstream.readF2Dot14(self)
-    return self:readInt16() / 16384;
-end
 
 
 
