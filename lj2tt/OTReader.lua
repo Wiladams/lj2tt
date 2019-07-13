@@ -2,6 +2,7 @@
 
 
 local binstream = require("lj2tt.binstream")
+local OTFontReader = require("lj2tt.OTFontReader")
 
 local OTReader = {}
 local OTReader_mt = {
@@ -13,7 +14,10 @@ function OTReader.init(self, params)
     params.bs = binstream(params.data, params.length, 0, false)
 
     setmetatable(params, OTReader_mt)
-    params:parseData()
+    local success, err = params:parseData()
+    if not success then
+        return nil, err
+    end
 
     return params
 end
@@ -29,8 +33,7 @@ end
 
 function OTReader.parseData(self)
     -- read tag
-    self.fileTag = self.bs:readTag()
-
+    self.sfntVersionTag = self.bs:readTag()
 
     -- rewind and read it as a 32-bit unsigned int
     self.bs:seek(0)
@@ -40,54 +43,32 @@ function OTReader.parseData(self)
     -- we can decide what kind of file we have.
     if self.sfntVersion == 0x00010000 then
         self.hasTTOutlines = true;
-    elseif self.fileTag == "OTTO" then
+    elseif self.sfntVersionTag == "OTTO" then
         self.hasCFFData = true;
     end
 
-    -- Additionally check to see if we have a 
-    -- collection
-    -- 'ttcf'
-
-    
-    self.offsetTable = self:readOffsetTable(self.bs)
-    self.offsetTable.entries = self:readOffsetTableEntries(self.bs, self.offsetTable)
-
-    return true;
-end
-
---[[
-
-]]
-function OTReader.readOffsetTable(self, bs, res)
-    res = res or {}
-
-    res.numTables = bs:readUInt16()
-    res.searchRange = bs:readUInt16();
-    res.entrySelector = bs:readUInt16();
-    res.rangeShift = bs:readUInt16();
-
-    return res;
-end
-
-function OTReader.readOffsetTableEntries(self, bs, head, res)
-    res = res or {}
-
-    local i = 0;
-    while (i < head.numTables) do
-        local tag = bs:readTag();
-        res[tag] = {
-            tag = tag, 
-            index = i;
-            checksum = bs:readUInt32();
-            offset = bs:readOffset32();
-            length = bs:readUInt32();
-        }
-        res[tag].data = bs.data + res[tag].offset;
-
-        i = i + 1;
+    --print(string.format("0x%08x", self.sfntVersion))
+    if (not self.hasTTOutlines) and (not self.hasCFFData) then
+        -- we can not deal with collections yet
+        return false, "unknown file signature";
     end
 
-    return res
+    -- We have a single font in the file, so get it by 
+    -- using the OTFontReader.  Need to seek back to zero
+    -- again, and hand the stream to the reader
+    self.bs:seek(0)
+
+    self.fonts = {}
+    local font, err = OTFontReader:createFontFromStream(self.bs)
+
+    if not font then
+        return false, err
+    end
+
+    table.insert(self.fonts, font)
+
+
+    return true;
 end
 
 return OTReader

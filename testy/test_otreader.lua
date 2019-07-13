@@ -5,16 +5,34 @@ local mmap = require("lj2tt.mmap_win32")
 
 local ffile = mmap("FontAwesome.ttf")
 
-local reader, err = OTReader:new({data = ffile:getPointer(), length = #ffile})
-
-if not reader then return nil end
-
-
-    print("sfntVersionTag: ", reader.sfntVersionTag)
-    print("sfntVersion: ", string.format("0x%08x", reader.sfntVersion))
-
-for k,v in pairs(reader.offsetTable.entries) do
-    print(k, v)
+local function printFontOffsetTables(font)
+    for key, tbl in pairs(font.offsetTable.entries) do
+        print(string.format("{tag='%s', offset = 0x%04x, length = %d};", 
+            key, tbl.offset, tbl.length))
+    end
 end
+
+local function printFont(font)
+    print("numTables: ", font.offsetTable.numTables)
+    printFontOffsetTables(font)
+end
+
+local function test_reader()
+    local collection, err = OTReader:new({data = ffile:getPointer(), length = #ffile})
+
+    if not collection then 
+        print("test_reader, ERROR: ", err)
+        return nil 
+    end
+
+    print("sfntVersionTag: ", collection.sfntVersionTag)
+    print("sfntVersion: ", string.format("0x%08x", collection.sfntVersion))
+
+    for _, font in ipairs(collection.fonts) do
+        printFont(font)
+    end
+end
+
+test_reader()
 
 
