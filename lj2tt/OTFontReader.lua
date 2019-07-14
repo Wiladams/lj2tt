@@ -28,7 +28,9 @@ function OTFontReader.new(self, params)
     return self:init(params)
 end
 
-local function parseTable(stream, toc, name, force)
+local function parseTable( font, stream, name, force)
+    local toc = font.offsetTable.entries
+
     local entry = toc[name]
     if not entry then
         return false, 'could not find table in toc'
@@ -56,10 +58,10 @@ function OTFontReader.createFontFromStream(self, stream)
     -- parse the data that's in each individual table
     -- as some tables are dependent on others, parse the 
     -- independent tables first
-    parseTable(stream, font.offsetTable.entries, 'head', true)
-    --parseTable(stream, font.offsetTable, 'maxp', true)
-    --parseTable(stream, font.offsetTable, 'hhea', true)
-    --parseTable(stream, font.offsetTable, 'name', true)
+    parseTable(font, stream, 'head', true)
+    --parseTable(font, stream, 'maxp', true)
+    parseTable(font, stream,  'hhea', true)
+    parseTable(font, stream, 'name', true)
 
     -- Now that we have the independent tables, we can parse
     -- the rest of the tables

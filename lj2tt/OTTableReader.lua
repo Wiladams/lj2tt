@@ -1,3 +1,4 @@
+local ffi = require("ffi")
 local bit = require("bit")
 local band, bor = bit.band, bit.bor
 local lshift, rshift = bit.lshift, bit.rshift
@@ -120,29 +121,29 @@ function OTTableReader.head(bs, toc, res)
     return res;
 end
 
-function OTTableReader.hhea(self, tbl)
-    local ms = ttstream(tbl.data, tbl.length);
+function OTTableReader.hhea(bs, toc, res)
+    res = res or {}
 
-    tbl.version = bs:readFixed(); -- ttULONG(tbl.data+0);
-    tbl.ascent = bs:readFWord();    -- tonumber(ttSHORT(tbl.data+4));
-    tbl.descent = bs:readFWord();    -- tonumber(ttSHORT(tbl.data+6));
-    tbl.lineGap = bs:readFWord();    -- ttSHORT(tbl.data+8);
-    tbl.advanceWidthMax = bs:getUFWord();   -- ttSHORT(tbl.data+10);
-    tbl.minLeftSideBearing = bs:readFWord();  -- ttSHORT(tbl.data+12);
-    tbl.minRightSideBearing = bs:readFWord();    -- ttSHORT(tbl.data+14);
-    tbl.xMaxExtent = bs:readFWord(); -- ttSHORT(tbl.data+16);
-    tbl.caretSlopeRise = bs:readInt16();     -- tonumber(ttSHORT(tbl.data+18));
-    tbl.caretSlopeRun = bs:readInt16();      -- tonumber(ttSHORT(tbl.data+20));
-    tbl.caretOffset = bs:readInt16();        -- tonumber(ttSHORT(tbl.data+22));
+    res.version = bs:readFixed();
+    res.ascent = bs:readFWord();
+    res.descent = bs:readFWord();
+    res.lineGap = bs:readFWord();
+    res.advanceWidthMax = bs:readUFWord();
+    res.minLeftSideBearing = bs:readFWord();
+    res.minRightSideBearing = bs:readFWord();
+    res.xMaxExtent = bs:readFWord();
+    res.caretSlopeRise = bs:readInt16();
+    res.caretSlopeRun = bs:readInt16();
+    res.caretOffset = bs:readInt16();
     --reserved - ttSHORT
     --reserved - ttSHORT
     --reserved - ttSHORT
     --reserved - ttSHORT
     bs:skip(8);
-    tbl.metricDataFormat = bs:readInt16();       
-    tbl.numOfLongHorMetrics = bs:readUInt16();    
+    res.metricDataFormat = bs:readInt16();       
+    res.numOfLongHorMetrics = bs:readUInt16();    
 
-    return tbl
+    return res
 end
 
 function OTTableReader.loca(tbl)
@@ -374,19 +375,25 @@ end
     As long as we know the length of the 'string' (which we do), there's 
     no problem encapsulating it in a lua string.
 ]]
-function OTTableReader.name(tbl)
-    local ms = ttstream(tbl.data, tbl.length);
-    tbl.format = bs:readUInt16();
-    tbl.count = bs:readUInt16();
-    tbl.stringOffset = bs:readUInt16();
-    tbl.names = {}
+function OTTableReader.name(bs, toc, res)
+    res = res or {}
+    
+    local startOfTable = bs:tell()
+
+    res.format = bs:readUInt16();
+
+    -- format can be either 0 or 1, so read fields
+    -- specific to the format.  Both formats still have the 
+    -- count, stringOffset, and nameRecord fields
+    res.count = bs:readUInt16();
+    res.stringOffset = bs:readUInt16();
+    res.names = {}
 
     --print("==== readTable_name: ", tbl, tbl.name, tbl.count)
     
     -- for the number of name record entries...
     local i=0
-    while (i < tbl.count ) do
-        --local base = tbl.data+6 + 12*(i);
+    while (i < res.count ) do
         local rec = {
             platformID = bs:readUInt16();
             platformSpecificID = bs:readUInt16();
@@ -396,14 +403,20 @@ function OTTableReader.name(tbl)
             offset = bs:readUInt16();
         }
         
-        rec.value = ffi.string(tbl.data+tbl.stringOffset+rec.offset, rec.length)
+        rec.value = ffi.string(bs:getPositionPointer(res.stringOffset+rec.offset), rec.length)
+        --rec.value = ffi.string(tbl.data+tbl.stringOffset+rec.offset, rec.length)
 
-        table.insert(tbl.names, rec)
+        table.insert(res.names, rec)
         
         i = i + 1;
     end
 
-    return tbl
+    -- If format == 1, then we have more to do
+    -- there are the langTagRecords to be read in
+
+
+
+    return res
 end
 
 

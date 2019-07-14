@@ -158,8 +158,10 @@ function binstream.alignTo(self, num)
 end
 
 -- get a pointer to the current position
-function binstream.getPositionPointer(self)
-    return self.data + self.cursor;
+function binstream.getPositionPointer(self, pos)
+    pos = pos or self.cursor
+
+    return self.data + pos;
 end
 
 -- get 8 bits, and don't advance the cursor
