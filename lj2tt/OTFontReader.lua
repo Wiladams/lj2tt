@@ -31,9 +31,17 @@ end
 local function parseTable( font, stream, name, force)
     local toc = font.offsetTable.entries
 
+print("parseTable: ", name)
+
     local entry = toc[name]
     if not entry then
         return false, 'could not find table in toc'
+    end
+
+    -- if it's already been parsed, and we're not
+    -- forcing a parse, then return true
+    if entry.PARSED and (not force) then
+        return true;
     end
 
     local reader = OTTableReader[entry.tag]
@@ -59,12 +67,22 @@ function OTFontReader.createFontFromStream(self, stream)
     -- as some tables are dependent on others, parse the 
     -- independent tables first
     parseTable(font, stream, 'head', true)
-    --parseTable(font, stream, 'maxp', true)
-    parseTable(font, stream,  'hhea', true)
+    parseTable(font, stream, 'maxp', true)
+    parseTable(font, stream, 'hhea', true)
     parseTable(font, stream, 'name', true)
 
     -- Now that we have the independent tables, we can parse
-    -- the rest of the tables
+    -- the rest of the required tables.  Some of them still have
+    -- other dependencies, so do those first
+    parseTable(font, stream, 'loca', true)
+
+    -- use the entries to iterate over tables
+    -- don't force, which will allow us to skip the ones
+    -- that we've already parsed
+    for tag, entry in pairs(font.offsetTable.entries) do
+        parseTable(font, stream, tag, false)
+    end
+
 
     return font
 end

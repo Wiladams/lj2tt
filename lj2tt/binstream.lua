@@ -370,7 +370,17 @@ end
 -- Some various fixed formats
 function binstream.readFixed(self)
     -- return self:readInt32 / bleft(1,16)
-    return self:readInt32() / 65535
+    local value = self:readInt32()
+    --print("readFixed: ", string.format("0x%08x", value))
+
+    return value / 65535
+
+    --return self:readInt32() / 65535
+end
+
+function binstream.readFixedVersion(self)
+    local value = self:readInt32()
+    return value;
 end
 
 function binstream.readF2Dot14(self)

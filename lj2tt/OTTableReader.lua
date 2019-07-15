@@ -1,3 +1,19 @@
+--[[
+parseTable: 	head    - parsed
+parseTable: 	maxp    - parsed
+parseTable: 	hhea    - parsed
+parseTable: 	name    - parsed
+parseTable: 	loca    - parsed
+
+parseTable: 	fpgm
+parseTable: 	prep
+parseTable: 	cvt 
+parseTable: 	cmap
+parseTable: 	post
+parseTable: 	OS/2
+parseTable: 	glyf
+parseTable: 	hmtx    - parsed
+]]
 local ffi = require("ffi")
 local bit = require("bit")
 local band, bor = bit.band, bit.bor
@@ -65,15 +81,15 @@ local function read_cmap_format(cmap, encodingRecord)
     return encodingRecord
 end
 
-function OTTableReader.cmap(self, tbl)
-    local ms = ttstream(tbl.data, tbl.length);
+function OTTableReader.cmap(bs, toc, res)
+    res = res or {}
 
-    tbl.version = bs:readUInt16();
-    tbl.numTables = bs:readUInt16();     -- Number of encoding tables
-    tbl.encodings = {};
+    res.version = bs:readUInt16();
+    res.numTables = bs:readUInt16();     -- Number of encoding tables
+    res.encodings = {};
 
     -- Read 'numTables' worth of encoding records
-    for i=1, tbl.numTables do
+    for i=1, res.numTables do
         local platformID = bs:readUInt16();
 
         local encodingRecord = {
@@ -81,7 +97,7 @@ function OTTableReader.cmap(self, tbl)
             encodingID = bs:readUInt16();
             offset = bs:readUInt32();
         };
-
+--[[
         -- Now that we have an offset
         -- we can read the details of the encoding
         read_cmap_format(tbl, encodingRecord);
@@ -92,104 +108,15 @@ function OTTableReader.cmap(self, tbl)
         end
 
         table.insert(tbl.encodings[platformID], encodingRecord);
+--]]
     end
-end
-
-
-
-function OTTableReader.head(bs, toc, res)
-    res = res or {}
-    
-    res.version = bs:readFixed();
-    res.fontRevision = bs:readFixed();
-    res.checksumAdjustment = bs:readUInt32();
-    res.magicNumber = bs:readUInt32();
-    res.flags = bs:readUInt16();
-    res.unitsPerEm = bs:readUInt16();
-    res.created = bs:readDate();
-    res.modified = bs:readDate(); 
-    res.xMin = bs:readFWord();
-    res.yMin = bs:readFWord();
-    res.xMax = bs:readFWord();
-    res.yMax = bs:readFWord();
-    res.macStyle = bs:readUInt16();
-    res.lowestRecPPEM = bs:readUInt16();
-    res.fontDirectionHint = bs:readInt16();
-    res.indexToLocFormat = bs:readInt16();
-    res.glyphDataFormat = bs:readInt16();
 
     return res;
 end
 
-function OTTableReader.hhea(bs, toc, res)
-    res = res or {}
 
-    res.version = bs:readFixed();
-    res.ascent = bs:readFWord();
-    res.descent = bs:readFWord();
-    res.lineGap = bs:readFWord();
-    res.advanceWidthMax = bs:readUFWord();
-    res.minLeftSideBearing = bs:readFWord();
-    res.minRightSideBearing = bs:readFWord();
-    res.xMaxExtent = bs:readFWord();
-    res.caretSlopeRise = bs:readInt16();
-    res.caretSlopeRun = bs:readInt16();
-    res.caretOffset = bs:readInt16();
-    --reserved - ttSHORT
-    --reserved - ttSHORT
-    --reserved - ttSHORT
-    --reserved - ttSHORT
-    bs:skip(8);
-    res.metricDataFormat = bs:readInt16();       
-    res.numOfLongHorMetrics = bs:readUInt16();    
 
-    return res
-end
 
-function OTTableReader.loca(tbl)
-    local numGlyphs = self.numGlyphs
-    local locformat = self.indexToLocFormat
-    local ms = ttstream(tbl.data, tbl.length);
-
-    tbl.offsets = {}
-
-    if locformat == 0 then
-        for i = 0, numGlyphs-1 do
-            tbl.offsets[i] = bs:readUInt16()*2;
-        end
-    elseif locformat == 1 then
-        for i = 0, numGlyphs-1 do
-            tbl.offsets[i] = bs:readUInt32();
-        end
-    end
-
-    return tbl
-end
-
--- Read the contents of the 'maxp' table
-function OTTableReader.maxp(self)
-    if not self then return false end
-
-    local ms = ttstream(self.data, self.length);
-
-    self.version = bs:readFixed() -- ttULONG(self.data+0);
-    self.numGlyphs = bs:readUInt16(); -- tonumber(ttUSHORT(self.data+4));
-    self.maxPoints = bs:readUInt16(); -- ttUSHORT(self.data+6);
-    self.maxContours = bs:readUInt16(); -- ttUSHORT(self.data+8);
-    self.maxComponentPoints = bs:readUInt16(); -- ttUSHORT(self.data+10);
-    self.maxComponentContours = bs:readUInt16(); -- ttUSHORT(self.data+12);
-    self.maxZones = bs:readUInt16(); -- ttUSHORT(self.data+14);
-    self.maxTwilightPoints = bs:readUInt16(); -- ttUSHORT(self.data+16);
-    self.maxStorage = bs:readUInt16(); -- ttUSHORT(self.data+18);
-    self.maxFunctionDefs = bs:readUInt16(); -- ttUSHORT(self.data+20);
-    self.maxInstructionDefs = bs:readUInt16(); -- ttUSHORT(self.data+22);
-    self.maxStackElements = bs:readUInt16();  -- ttUSHORT(self.data+24);
-    self.maxSizeOfInstructions = bs:readUInt16(); -- ttUSHORT(self.data+26);
-    self.maxComponentElements = bs:readUInt16(); -- ttUSHORT(self.data+28);
-    self.maxComponentDepth = bs:readUInt16(); -- ttUSHORT(self.data+30);
-
-    return self;
-end
 
 --[[
     the glyf table contains the contours associated with each glyf
@@ -317,17 +244,16 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
     readCoords("y", TT_GLYF_Y_IS_BYTE, TT_GLYF_Y_DELTA, glyph.yMin, glyph.yMax);
 end
 
-function OTTableReader.glyf(self, tbl)
-    local numGlyphs = self.numGlyphs
+function OTTableReader.glyf(bs, toc, res)
+    res = res or {}
 
-    local offsets = self.tables['loca'].offsets
-    local tbldata = tbl.data;
-    local ms = ttstream(tbl.data, tbl.length);
+    local numGlyphs = toc['maxp'].numGlyphs
 
-    --print("readTable_glyf.NUMGLYPHS: ", numGlyphs, tbldata, offsets)
+    local offsets = toc['loca'].offsets
 
-    tbl.glyphs = {}
-    local glyphs = tbl.glyphs
+--[[
+    res.glyphs = {}
+    local glyphs = res.glyphs
 
     local i = 0;
     while i < numGlyphs-2 do
@@ -361,11 +287,148 @@ function OTTableReader.glyf(self, tbl)
         
         i = i + 1;
     end
-
+--]]
     --print("readTabke_glyf: FINISHED")
-    return tbl
+    return res
 end
 
+function OTTableReader.head(bs, toc, res)
+    res = res or {}
+    
+    res.version = bs:readFixed();
+    res.fontRevision = bs:readFixed();
+    res.checksumAdjustment = bs:readUInt32();
+    res.magicNumber = bs:readUInt32();
+    res.flags = bs:readUInt16();
+    res.unitsPerEm = bs:readUInt16();
+    res.created = bs:readDate();
+    res.modified = bs:readDate(); 
+    res.xMin = bs:readFWord();
+    res.yMin = bs:readFWord();
+    res.xMax = bs:readFWord();
+    res.yMax = bs:readFWord();
+    res.macStyle = bs:readUInt16();
+    res.lowestRecPPEM = bs:readUInt16();
+    res.fontDirectionHint = bs:readInt16();
+    res.indexToLocFormat = bs:readInt16();
+    res.glyphDataFormat = bs:readInt16();
+
+    return res;
+end
+
+function OTTableReader.hhea(bs, toc, res)
+    res = res or {}
+
+    res.version = bs:readFixedVersion();
+    res.ascent = bs:readFWord();
+    res.descent = bs:readFWord();
+    res.lineGap = bs:readFWord();
+    res.advanceWidthMax = bs:readUFWord();
+    res.minLeftSideBearing = bs:readFWord();
+    res.minRightSideBearing = bs:readFWord();
+    res.xMaxExtent = bs:readFWord();
+    res.caretSlopeRise = bs:readInt16();
+    res.caretSlopeRun = bs:readInt16();
+    res.caretOffset = bs:readInt16();
+    --reserved - ttSHORT
+    --reserved - ttSHORT
+    --reserved - ttSHORT
+    --reserved - ttSHORT
+    bs:skip(8);
+    res.metricDataFormat = bs:readInt16();       
+    res.numberOfHMetrics = bs:readUInt16();    
+
+    return res
+end
+
+function OTTableReader.hmtx(bs, toc, res)
+    res = res or {}
+
+    local numberOfHMetrics = toc['hhea'].numberOfHMetrics;
+    local numGlyphs = toc['maxp'].numGlyphs;
+
+
+    local function readLongHorMetric(bs, rec)
+        rec = rec or {}
+        rec.advanceWidth = bs:readUInt16(); -- advance witdh, in font design units
+        rec.lsb = bs:readInt16();
+
+        return rec
+    end
+
+    res.hMetrics = {}
+    for i=1, numberOfHMetrics do
+        local rec = readLongHorMetric(bs)
+        table.insert(res.hMetrics, rec)
+    end
+
+    local lsbCount = numGlyphs - numberOfHMetrics;
+    if lsbCount > 0 then
+        res.leftSideBearings = {}
+        for i=0,lsbCount-1 do
+            local rec = bs:readInt16();
+            table[numberOfHMetrics+i] = rec;
+        end
+    end
+
+    return res
+end
+
+function OTTableReader.loca(bs, toc, res)
+    res = res or {}
+
+    local numGlyphs = toc['maxp'].numGlyphs
+    local locFormat = toc['head'].indexToLocFormat;
+
+    res.offsets = {}
+
+    if locformat == 0 then
+        for i = 0, numGlyphs-1 do
+            res.offsets[i] = bs:readUInt16()*2;
+        end
+    elseif locformat == 1 then
+        for i = 0, numGlyphs-1 do
+            res.offsets[i] = bs:readUInt32();
+        end
+    end
+
+    return res
+end
+
+-- Read the contents of the 'maxp' table
+function OTTableReader.maxp(bs, toc, res)
+
+    local CFFVersion = 0x00005000;
+    local TTVersion  = 0x00010000;
+
+
+    res.version = bs:readFixedVersion() -- ttULONG(self.data+0);
+    res.numGlyphs = bs:readUInt16(); -- tonumber(ttUSHORT(self.data+4));
+
+    --print("maxp, version: ", string.format("0x%08x", res.version))
+
+    if res.version == CFFVersion then
+        return res;
+    end
+    
+    -- assume TTVersion
+    res.maxPoints = bs:readUInt16(); -- ttUSHORT(self.data+6);
+    res.maxContours = bs:readUInt16(); -- ttUSHORT(self.data+8);
+    res.maxComponentPoints = bs:readUInt16(); -- ttUSHORT(self.data+10);
+    res.maxComponentContours = bs:readUInt16(); -- ttUSHORT(self.data+12);
+    res.maxZones = bs:readUInt16(); -- ttUSHORT(self.data+14);
+    res.maxTwilightPoints = bs:readUInt16(); -- ttUSHORT(self.data+16);
+    res.maxStorage = bs:readUInt16(); -- ttUSHORT(self.data+18);
+    res.maxFunctionDefs = bs:readUInt16(); -- ttUSHORT(self.data+20);
+    res.maxInstructionDefs = bs:readUInt16(); -- ttUSHORT(self.data+22);
+    res.maxStackElements = bs:readUInt16();  -- ttUSHORT(self.data+24);
+    res.maxSizeOfInstructions = bs:readUInt16(); -- ttUSHORT(self.data+26);
+    res.maxComponentElements = bs:readUInt16(); -- ttUSHORT(self.data+28);
+    res.maxComponentDepth = bs:readUInt16(); -- ttUSHORT(self.data+30);
+
+
+    return res;
+end
 
 --[[
     Reading the name table

@@ -3,8 +3,8 @@ package.path = "../?.lua;"..package.path;
 local OTReader = require("lj2tt.OTReader")
 local mmap = require("lj2tt.mmap_win32")
 
---local ffile = mmap("resources/FontAwesome.ttf")
-local ffile = mmap("resources/exo.extra-light-italic.otf")
+local ffile = mmap("resources/FontAwesome.ttf")
+--local ffile = mmap("resources/exo.extra-light-italic.otf")
 
 local function printFontTOC(font)
     print("    tableOfContents = {")
@@ -21,14 +21,80 @@ local function printFontTOC(font)
 end
 
 local function print_table_head(tbl)
-    print("==== print_table_head ====", tbl)
-    print(string.format("magicNumber: 0x%8X", tbl.magicNumber))
-    print("flags: ", string.format("0x%04x", tbl.flags))
-    print("macStyle: ", tbl.macStyle)
-    print("unitsPerEm: ", tbl.unitsPerEm)
-    print("fontDirectionHint: ", tbl.fontDirectionHint)
-    print("indexToLocFormat: ", tbl.indexToLocFormat)
-    print("glyphDataFormat: ", tbl.glyphDataFormat)
+    print("head = {")
+    print(string.format("    magicNumber = 0x%8X", tbl.magicNumber))
+    print("    flags = ", string.format("0x%04x", tbl.flags))
+    print("    macStyle = ", tbl.macStyle)
+    print("    unitsPerEm = ", tbl.unitsPerEm)
+    print("    fontDirectionHint = ", tbl.fontDirectionHint)
+    print("    indexToLocFormat = ", tbl.indexToLocFormat)
+    print("    glyphDataFormat = ", tbl.glyphDataFormat)
+    print("};")
+end
+
+local function printIntValue(tbl, name)
+    print(string.format("    %s = %d,", name, tbl[name]))
+end
+
+local function print_table_hhea(tbl)
+ 
+    local intFields = {
+        "ascent",
+        "descent",
+        "lineGap",
+        "advanceWidthMax",
+        "minLeftSideBearing",
+        "minRightSideBearing",
+        "xMaxExtent",
+
+        "caretSlopeRise",
+        "caretSlopeRun",
+        "caretOffset",
+        "metricDataFormat",
+        "numberOfHMetrics"
+    }
+    print("hhea = {")
+    print(string.format("    version =  0x%08x;", tbl.version))
+
+    for _, fieldName in ipairs(intFields) do
+        printIntValue(tbl, fieldName)
+    end
+
+    print("};")
+end
+
+local CFFVersion = 0x00005000;
+local TTVersion  = 0x00010000;
+
+local function print_table_maxp(tbl)
+    print("maxp = {")
+    print(string.format("    version =  0x%08x;", tbl.version))
+    print(string.format("    numGlyphs = %d;", tbl.numGlyphs))
+
+
+    local intFields = {
+        "maxPoints",
+        "maxContours",
+        "maxComponentPoints",
+        "maxComponentContours",
+        "maxZones",
+        "maxTwilightPoints",
+        "maxStorage",
+        "maxFunctionDefs",
+        "maxInstructionDefs",
+        "maxStackElements",
+        "maxSizeOfInstructions",
+        "maxComponentElements",
+        "maxComponentDepth"
+    }
+
+    if tbl.version == TTVersion then
+        for _, fieldName in ipairs(intFields) do
+            printIntValue(tbl, fieldName)
+        end
+    end
+
+    print("};")
 end
 
 local function print_table_name(tbl)
@@ -59,7 +125,9 @@ local function printFont(font)
 
     -- print tables
     print_table_head(font.offsetTable.entries['head'])
+    print_table_hhea(font.offsetTable.entries['hhea'])
     print_table_name(font.offsetTable.entries['name'])
+    print_table_maxp(font.offsetTable.entries['maxp'])
 end
 
 local function test_reader()
@@ -70,8 +138,8 @@ local function test_reader()
         return nil 
     end
 
-    print("    sfntVersionTag = ", collection.sfntVersionTag)
-    print("    sfntVersion = ", string.format("0x%08x", collection.sfntVersion))
+    --print("    sfntVersionTag = ", collection.sfntVersionTag)
+    --print("    sfntVersion = ", string.format("0x%08x", collection.sfntVersion))
 
     for _, font in ipairs(collection.fonts) do
         printFont(font)
