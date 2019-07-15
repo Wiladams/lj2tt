@@ -36,9 +36,19 @@ local function print_table_GSUB(tbl)
     print("GSUB = {")
     printIntValue(tbl, "majorVersion");
     printIntValue(tbl, "minorVersion");
-    printIntValue(tbl, "scriptListOffset");
-    printIntValue(tbl, "featureListOffset");
-    printIntValue(tbl, "lookupListOffset");
+    --printIntValue(tbl, "scriptListOffset");
+    --printIntValue(tbl, "featureListOffset");
+    --printIntValue(tbl, "lookupListOffset");
+
+    -- scriptList
+    -- featureList
+    print("    featureList = {")
+    for _, entry in ipairs(tbl.featureList.featureRecords) do
+        print(string.format("        '%s',",entry.tag))
+    end
+    print("    };")
+    -- lookupList
+
     print("};")
 end
 
@@ -147,15 +157,17 @@ end
 
 local function printFont(font)
     print("font = {")
-    printFontTOC(font)
+    --printFontTOC(font)
 
     -- print tables
-    print_table_head(font.offsetTable.entries['head'])
-    print_table_hhea(font.offsetTable.entries['hhea'])
-    print_table_name(font.offsetTable.entries['name'])
-    print_table_maxp(font.offsetTable.entries['maxp'])
-    print_table_os2(font.offsetTable.entries['OS/2'])
+    --print_table_head(font.offsetTable.entries['head'])
+    --print_table_hhea(font.offsetTable.entries['hhea'])
+    --print_table_name(font.offsetTable.entries['name'])
+    --print_table_maxp(font.offsetTable.entries['maxp'])
+    --print_table_os2(font.offsetTable.entries['OS/2'])
     print_table_GSUB(font.offsetTable.entries['GSUB'])
+
+    print("};")
 end
 
 local function test_reader()

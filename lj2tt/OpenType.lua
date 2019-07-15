@@ -1,4 +1,20 @@
 --[[
+    Lookup flag bit enumeration
+    These values apply to the 'lookupFlag' field
+    of a lookupList table
+]]
+local lookupFlagBitfield = {
+    [0x0001] = 'rightToLeft',
+    [0x0002] = 'ignoreBaseGlyphs',
+    [0x0004] = 'ignoreLigatures',
+    [0x0008] = 'ignoreMarks',
+    [0x0010] = 'useMarkFilteringSet',
+    [0x00E0] = 'reserved',
+    [0xff00] = 'makrAttachmentType'
+}
+
+
+--[[
     Ideally there would be an easily downloadable form of the 
     following, rather than just the web page.  Need to watch for
     new features being registered.
