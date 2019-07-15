@@ -71,6 +71,7 @@ end
     made in the new stream will be reflected in the original.
 --]]
 
+
  function binstream.range(self, size, pos)
     pos = pos or self.cursor;
 
@@ -82,11 +83,18 @@ end
         return false, "pos > self.size"
     end
 
-    if ((size > (self.size - pos))) then 
+    if size > self:remaining() then 
         return false, "size is greater than remainder";
     end
 
     return binstream(self.data+pos, size, 0 , not self.bigend)
+end
+
+function binstream.getRange(self, params)
+    params.position = params.position or self.cursor
+    params.size = params.size or self:remaining()
+
+    return self:range(params.size, params.position)
 end
 
 -- report how many bytes remain to be read

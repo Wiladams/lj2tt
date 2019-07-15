@@ -3,8 +3,18 @@ package.path = "../?.lua;"..package.path;
 local OTReader = require("lj2tt.OTReader")
 local mmap = require("lj2tt.mmap_win32")
 
-local ffile = mmap("resources/FontAwesome.ttf")
---local ffile = mmap("resources/exo.extra-light-italic.otf")
+--local ffile = mmap("resources/FontAwesome.ttf")
+local ffile = mmap("resources/exo.extra-light-italic.otf")
+
+local function printIntValue(tbl, name)
+    local value = tbl[name]
+    if not value then
+        return false, "field not found";
+    end
+
+    print(string.format("    %s = %d,", name, value))
+    return true;
+end
 
 local function printFontTOC(font)
     print("    tableOfContents = {")
@@ -20,6 +30,18 @@ local function printFontTOC(font)
     print("};")
 end
 
+local function print_table_GSUB(tbl)
+    if not tbl then return false end
+
+    print("GSUB = {")
+    printIntValue(tbl, "majorVersion");
+    printIntValue(tbl, "minorVersion");
+    printIntValue(tbl, "scriptListOffset");
+    printIntValue(tbl, "featureListOffset");
+    printIntValue(tbl, "lookupListOffset");
+    print("};")
+end
+
 local function print_table_head(tbl)
     print("head = {")
     print(string.format("    magicNumber = 0x%8X", tbl.magicNumber))
@@ -32,9 +54,7 @@ local function print_table_head(tbl)
     print("};")
 end
 
-local function printIntValue(tbl, name)
-    print(string.format("    %s = %d,", name, tbl[name]))
-end
+
 
 local function print_table_hhea(tbl)
  
@@ -119,6 +139,12 @@ local function print_table_name(tbl)
     print("};")
 end
 
+local function print_table_os2(tbl)
+    for k,v in pairs(tbl) do
+        print(k,v)
+    end
+end
+
 local function printFont(font)
     print("font = {")
     printFontTOC(font)
@@ -128,6 +154,8 @@ local function printFont(font)
     print_table_hhea(font.offsetTable.entries['hhea'])
     print_table_name(font.offsetTable.entries['name'])
     print_table_maxp(font.offsetTable.entries['maxp'])
+    print_table_os2(font.offsetTable.entries['OS/2'])
+    print_table_GSUB(font.offsetTable.entries['GSUB'])
 end
 
 local function test_reader()

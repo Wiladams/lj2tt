@@ -19,6 +19,84 @@ local bit = require("bit")
 local band, bor = bit.band, bit.bor
 local lshift, rshift = bit.lshift, bit.rshift
 
+--[[
+    Common tables
+]]
+local function read_ScriptList(bs, res)
+    local function readScriptTable(bs, res)
+        local function readLangSysRecord(bs, res)
+            local function readLanguageSystemTable(bs, res)
+                res = res or {}
+                res.lookupOrder = bs:readOffset16();
+                res.requiredFeatureIndex = bs:readUInt16();
+                res.featureIndexCount = bs:readUInt16();
+                if res.featureIndexCount > 0 then
+                    res.featureIndices = {}
+                    for i=1, res.featureIndexCount do
+                        local value = bs:readUInt16();
+                        table.insert(res.featureIndices, value)
+                    end
+                end
+
+                return res
+            end
+
+            res = res or {}
+            res.langSysTag = bs:readTag();
+            res.langSysOffset = bs:readOffset16();
+            local ls = bs:getRange({position = res.langSysOffset})
+            res.langSysTable = readLanguageSystemTable(ls)
+
+            return res;
+        end
+
+        res = res or {}
+        res.defaultLangSys = bs:readOffset16();
+        res.langSysCount = bs:readUInt16();
+
+        if res.langSysCount > 0 then
+            res.langSysRecords = {};
+            for i=1, res.langSysCount do 
+                local rec = readLangSysRecord(bs);
+                table.insert(res.langSysRecords, rec);
+            end
+        end
+
+        return res;
+    end
+
+    local function readScriptRecord(bs, res)
+        res = res or {}
+        res.scriptTag = bs:readTag();
+        res.scriptOffset = bs:readOffset16();
+
+        return res;
+    end
+
+    -- This starts as a table of contents
+    -- for script records, so first read the 
+    -- table of contents records
+    res = res or {}
+    res.scriptCount = bs:readUInt16();
+    res.scriptRecords = {}
+    for i=1,res.scriptCount do
+        local rec = readScriptRecord(bs);
+        table.insert(res.scriptRecords, rec)
+    end
+
+    -- Now we have table of contents so read
+    -- the actual records for each entry 
+    for _, entry in ipairs(res.scriptRecords) do 
+        local ts, err = bs:getRange({position = entry.scriptOffset})
+        --print("TS, err: ", ts, err, bs:remaining())
+        entry.scriptTable = readScriptTable(ts)
+    end
+
+
+    return res
+end
+
+
 local OTTableReader = {}
 
 -- Read the contents of the 'cmap' table
@@ -292,6 +370,44 @@ function OTTableReader.glyf(bs, toc, res)
     return res
 end
 
+-- This is a fairly complex table
+-- bit by bit
+function OTTableReader.GSUB(bs, toc, res)
+    res = res or {}
+
+    -- Header fields are cumulative, depending on the 
+    -- major.minor number
+    -- Start with common
+    res.majorVersion = bs:readUInt16();
+    res.minorVersion = bs:readUInt16();
+    res.scriptListOffset = bs:readOffset16();
+    res.featureListOffset = bs:readOffset16();
+    res.lookupListOffset = bs:readOffset16();
+
+    local scriptSize = res.featureListOffset - res.scriptListOffset;
+    local featureSize = res.lookupListOffset - res.featureListOffset;
+    local lookupListSize = bs:remaining() - res.lookupListOffset;
+    local featurVariationSize = 0
+
+    if res.majorVersion == 1 and res.minorVersion == 1 then
+        res.featureVariationsOffset = bs:readOffset32();
+        lookupListSize = res.featureVariationsOffset - res.lookupListOffset;
+        featureVariationSize = bs:remaining() - res.featureVariationsOffset;
+    end
+
+    --print("majorVersion: ", res.majorVersion)
+    --print("minorVersion: ", res.minorVersion)
+    --print("scriptListOffset: ", res.scriptListOffset)
+
+    -- Now that we have offsets, we can read each type of thing
+    res.scriptList = read_ScriptList(bs:getRange({position = res.scriptListOffset}))
+    --res.featureList = read_FeatureList(bs:getRange({position = res.featureListOffset}))
+    --res.lookupList = read_lookupList(bs:getRange({position = res.lookupListOffset}))
+
+    return res
+end
+
+
 function OTTableReader.head(bs, toc, res)
     res = res or {}
     
@@ -482,6 +598,115 @@ function OTTableReader.name(bs, toc, res)
     return res
 end
 
+
+--[[
+        local fields = {
+        {name = "version", kind = "uint16"};
+        {name = "xAvgCharWidth", kind = "int16"};
+        {name = "usWeightClass", kind = "uint16"};
+        {name = "usWidthClass", kind = "uint16"};
+        {name = "fsType", kind = "uint16"};
+        {name = "ySubscriptXSize", kind = "int16"};
+        {name = "ySubscriptYSize", kind = "int16"};
+        {name = "ySubscriptXOffset", kind = "int16"};
+        {name = "ySubscriptYOffset", kind = "int16"};
+        {name = "ySuperscriptXSize", kind = "int16"};
+        {name = "ySuperscriptYSize", kind = "int16"};
+        {name = "ySuperscriptXOffset", kind = "int16"};
+        {name = "ySuperscriptYOffset", kind = "int16"};
+        {name = "yStrikeoutSize", kind = "int16"};
+        {name = "yStrikeoutPosition", kind = "int16"};
+        {name = "sFamilyClass", kind = "int16"};
+        {name = "panose", kind = "uint8", size=10};
+        {name = "ulUnicodeRange1", kind = "uint32"};
+        {name = "ulUnicodeRange2", kind = "uint32"};
+        {name = "ulUnicodeRange3", kind = "uint32"};
+        {name = "ulUnicodeRange4", kind = "uint32"};
+        {name = "achVendID", kind = "Tag"};
+        {name = "fsSelection", kind = "uint16"};
+        {name = "usFirstCharIndex", kind = "uint16"};
+        {name = "usLastCharIndex", kind = "uint16"};
+        {name = "sTypoAscender", kind = "int16"};
+        {name = "sTypoDescender", kind = "int16"};
+        {name = "sTypoLineGap", kind = "int16"};
+        {name = "usWinAscent", kind = "uint16"};
+        {name = "usWinDescent", kind = "uint16"};
+    }
+
+local function readFields(bs, fields, res)
+    res = res or {}
+    
+    for _, field in iparis(fields) do 
+        
+    end
+
+    return res;
+end
+--]]
+
+OTTableReader['OS/2'] = function(bs, toc, res)
+    res = res or {}
+
+    res.version = bs:readUInt16();
+
+    -- Use the version to figure out how much more
+    -- we should be reading.  
+    -- All versions at least
+    -- start with the version 0 fields, so read them first
+    res.xAvgCharWidth = bs:readInt16();
+    res.usWeightClass = bs:readUInt16();
+    res.usWidthClass = bs:readUInt16();
+    res.fsType = bs:readUInt16();
+    res.ySubscriptXSize = bs:readInt16();
+    res.ySubscriptYSize = bs:readInt16();
+    res.ySubscriptXOffset = bs:readInt16();
+    res.ySubscriptYOffset = bs:readInt16();
+    res.ySuperscriptXSize = bs:readInt16();
+    res.ySuperscriptYSize = bs:readInt16();
+    res.ySuperscriptXOffset = bs:readInt16();
+    res.ySuperscriptYOffset = bs:readInt16();
+    res.yStrikeoutSize = bs:readInt16();
+    res.yStrikeoutPosition = bs:readInt16();
+    res.yFamilyClass = bs:readInt16();
+    res.panose = bs:readBytes(10);
+    res.ulUnicodeRange1 = bs:readUInt32();
+    res.ulUnicodeRange2 = bs:readUInt32();
+    res.ulUnicodeRange3 = bs:readUInt32();
+    res.ulUnicodeRange4 = bs:readUInt32();
+    res.achVendID = bs:readTag();
+    res.fsSelection = bs:readUInt16();
+    res.usFirstCharIndex = bs:readUInt16();
+    res.usLastCharIndex = bs:readUInt16();
+    res.sTypoAscender = bs:readInt16();
+    res.sTypoDescender = bs:readInt16();
+    res.sTypoLineGap = bs:readInt16();
+    res.usWinAscent = bs:readUInt16();
+    res.usWinDescent = bs:readUInt16();
+
+    -- Subsequent versions are cumulative, so 
+    -- we can add fields as we go
+    -- At least version 1
+    if res.version > 0 then
+        res.ulCodePageRange1 = bs:readUInt32();
+        res.ulCodePageRange2 = bs:readUInt32();
+    end
+
+    -- Versions 2, 3 and 4 are the same
+    if res.version > 1 then
+        res.sxHeight = bs:readInt16();
+        res.sCapHeight = bs:readInt16();
+        res.usDefaultChar = bs:readUInt16();
+        res.usMaxContext = bs:readUInt16();
+    end
+
+    -- version 5 and above
+    if res.version > 4 then
+        res.usLowerOpticalPointSize = bs:readUInt16();
+        res.usUpperOpticalPointSize = bs:readUInt16();
+    end
+
+    return res
+end
 
 
 return OTTableReader

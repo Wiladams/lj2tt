@@ -31,7 +31,7 @@ end
 local function parseTable( font, stream, name, force)
     local toc = font.offsetTable.entries
 
-print("parseTable: ", name)
+--print("parseTable: ", name)
 
     local entry = toc[name]
     if not entry then
