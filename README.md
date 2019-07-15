@@ -21,3 +21,6 @@ https://raw.githubusercontent.com/nothings/stb/master/stb_truetype.h
 
 Other references
 https://github.com/Jolg42/awesome-typography
+
+Example Fonts
+https://www.1001fonts.com/exo-font.html
