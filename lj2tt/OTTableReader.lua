@@ -8,10 +8,10 @@ parseTable: 	loca    - parsed
 parseTable: 	fpgm
 parseTable: 	prep
 parseTable: 	cvt 
-parseTable: 	cmap
+parseTable: 	cmap    - parsed, partial
 parseTable: 	post
-parseTable: 	OS/2
-parseTable: 	glyf
+parseTable: 	OS/2    - parsed
+parseTable: 	glyf    - parsed, partial
 parseTable: 	hmtx    - parsed
 ]]
 local ffi = require("ffi")
@@ -232,8 +232,8 @@ local OTTableReader = {}
 -- of a codepoint using whatever the appropriate calculation is
 -- look at: stbtt_FindGlyphIndex
 --
-local function read_cmap_format(cmap, encodingRecord)
-    local ms = ttstream(cmap.data, cmap.length);
+local function read_cmap_format(cmap, bs, encodingRecord)
+    --local ms = ttstream(cmap.data, cmap.length);
     bs:seek(encodingRecord.offset)
     
     -- Table of functions for reading formats
@@ -246,7 +246,7 @@ local function read_cmap_format(cmap, encodingRecord)
             er.index_map = ffi.new("uint8_t[?]", 256);
 
             for i=0,255 do
-                er.index_map[i] = bs:getUInt8();
+                er.index_map[i] = bs:readUInt8();
             end
         end;
 
@@ -300,17 +300,17 @@ function OTTableReader.cmap(bs, toc, res)
             encodingID = bs:readUInt16();
             offset = bs:readUInt32();
         };
---[[
+---[[
         -- Now that we have an offset
         -- we can read the details of the encoding
-        read_cmap_format(tbl, encodingRecord);
+        read_cmap_format(res, bs, encodingRecord);
 
-        if not tbl.encodings[platformID] then
+        if not res.encodings[platformID] then
             print("NEW PLATFORM ID: ", platformID)
-            tbl.encodings[platformID] = {}
+            res.encodings[platformID] = {}
         end
 
-        table.insert(tbl.encodings[platformID], encodingRecord);
+        table.insert(res.encodings[platformID], encodingRecord);
 --]]
     end
 
@@ -342,7 +342,7 @@ local TT_GLYF_Y_DELTA   = 32;
 
 
 
-function OTTableReader.readSimpleGlyph(self, glyph, ms)
+local function readSimpleGlyph(glyph, bs)
     local function debugit(idx, glyph, fmt, ...)
         if glyph.index ~= idx then
             return;
@@ -367,7 +367,7 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
     glyph.instructionLength = bs:readUInt16();
     --print("INSTRUCTIONLENGTH: ", glyph.instructionLength)
     --glyph.instructions = bs:getString(glyph.instructionLength);
-    glyph.instructions = bs:getBytes(glyph.instructionLength);
+    glyph.instructions = bs:readBytes(glyph.instructionLength);
 
     local noc  = glyph.contourEnds[glyph.numberOfContours]+1;
     glyph.numFlags = noc;
@@ -381,7 +381,7 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
     local offset = 0;
     --debugit(26, glyph, "Number of Coords: %d", noc)
     while ( i < noc) do
-        local flag = bs:getUInt8();
+        local flag = bs:readUInt8();
         assert(flag)
         --debugit(26, glyph, "FLAG: %d  0x%04x", i, flag)
 
@@ -393,7 +393,7 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
         -- flags themselves, so we do the expansion
         -- and increment the loop counter accordingly
         if band(flag, TT_GLYF_REPEAT) > 0 then
-            local repeatCount = bs:get8();
+            local repeatCount = bs:readOctet();
             i = i + repeatCount;
             --debugit(26, glyph, "  Repeat: 0x%04x  %d", flag, repeatCount)
             --assert(repeatCount > 0);
@@ -412,7 +412,7 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
 
     -- This function helps us convert from the currently stored
     -- delta values, into absolute coordinate values
-    function readCoords(name, byteFlag, deltaFlag, min, max) 
+    function readCoords(bs, name, byteFlag, deltaFlag, min, max) 
         local value = 0;
         local i = 0;
         while( i < noc) do
@@ -426,9 +426,9 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
                 -- otherwise, it's negative.  Essentially the sign bit
                 -- is represented by the deltaFlag
                 if same  then
-                    value = value + bs:getUInt8();
+                    value = value + bs:readUInt8();
                 else
-                    value = value - bs:getUInt8();
+                    value = value - bs:readUInt8();
                 end
             elseif same then
                 -- value is unchanged.
@@ -443,26 +443,27 @@ function OTTableReader.readSimpleGlyph(self, glyph, ms)
     end
 
     --print("I: Points: ", glyph.index, numPoints)
-    readCoords("x", TT_GLYF_X_IS_BYTE, TT_GLYF_X_DELTA, glyph.xMin, glyph.xMax);
-    readCoords("y", TT_GLYF_Y_IS_BYTE, TT_GLYF_Y_DELTA, glyph.yMin, glyph.yMax);
+    readCoords(bs, "x", TT_GLYF_X_IS_BYTE, TT_GLYF_X_DELTA, glyph.xMin, glyph.xMax);
+    readCoords(bs, "y", TT_GLYF_Y_IS_BYTE, TT_GLYF_Y_DELTA, glyph.yMin, glyph.yMax);
 end
 
 function OTTableReader.glyf(bs, toc, res)
     res = res or {}
 
     local numGlyphs = toc['maxp'].numGlyphs
-
     local offsets = toc['loca'].offsets
+--print("OTTableReader.glyf, offsets: ", offsets, #offsets, numGlyphs)
 
---[[
+    res.numGlyphs = numGlyphs;
     res.glyphs = {}
     local glyphs = res.glyphs
 
     local i = 0;
     while i < numGlyphs-2 do
-        --local offset = offsets[i];
+        local offset = offsets[i];
         --print("OFFSET: ", offsets[i])
         bs:seek(offsets[i])
+
 
         local glyph = {
             index = i;
@@ -472,7 +473,7 @@ function OTTableReader.glyf(bs, toc, res)
             xMax = bs:readInt16();
             yMax = bs:readInt16();
             };
-
+---[[
         -- Based on the number of contours, we can figure out if 
         -- this is a simple glyph, or a compound glyph (combo of glyphs)
         -- contours < 0    glyph comprised of components
@@ -480,17 +481,16 @@ function OTTableReader.glyf(bs, toc, res)
         -- contours > 1
         local contourCount = glyph.numberOfContours
         if contourCount > 0 then
-            OTTableReader.readSimpleGlyph(self, glyph, ms)
+            readSimpleGlyph(glyph, bs)
         elseif contourCount < 0 then
             -- composite glyph
         end
-
+--]]
         glyphs[i] = glyph;
-        --table.insert(glyphs, glyph)
         
         i = i + 1;
     end
---]]
+
     --print("readTabke_glyf: FINISHED")
     return res
 end
@@ -623,12 +623,16 @@ function OTTableReader.loca(bs, toc, res)
     local locFormat = toc['head'].indexToLocFormat;
 
     res.offsets = {}
+--print("loca, numGlyphs: ", numGlyphs)
+--print("loca, locFormat: ", locFormat)
 
-    if locformat == 0 then
+    if locFormat == 0 then
         for i = 0, numGlyphs-1 do
-            res.offsets[i] = bs:readUInt16()*2;
+            local value = bs:readUInt16()*2;
+            --print("loca, offset: ", i, value)
+            res.offsets[i] = value
         end
-    elseif locformat == 1 then
+    elseif locFormat == 1 then
         for i = 0, numGlyphs-1 do
             res.offsets[i] = bs:readUInt32();
         end
@@ -644,8 +648,8 @@ function OTTableReader.maxp(bs, toc, res)
     local TTVersion  = 0x00010000;
 
 
-    res.version = bs:readFixedVersion() -- ttULONG(self.data+0);
-    res.numGlyphs = bs:readUInt16(); -- tonumber(ttUSHORT(self.data+4));
+    res.version = bs:readFixedVersion()
+    res.numGlyphs = bs:readUInt16();
 
     --print("maxp, version: ", string.format("0x%08x", res.version))
 
@@ -654,19 +658,19 @@ function OTTableReader.maxp(bs, toc, res)
     end
     
     -- assume TTVersion
-    res.maxPoints = bs:readUInt16(); -- ttUSHORT(self.data+6);
-    res.maxContours = bs:readUInt16(); -- ttUSHORT(self.data+8);
-    res.maxComponentPoints = bs:readUInt16(); -- ttUSHORT(self.data+10);
-    res.maxComponentContours = bs:readUInt16(); -- ttUSHORT(self.data+12);
-    res.maxZones = bs:readUInt16(); -- ttUSHORT(self.data+14);
-    res.maxTwilightPoints = bs:readUInt16(); -- ttUSHORT(self.data+16);
-    res.maxStorage = bs:readUInt16(); -- ttUSHORT(self.data+18);
-    res.maxFunctionDefs = bs:readUInt16(); -- ttUSHORT(self.data+20);
-    res.maxInstructionDefs = bs:readUInt16(); -- ttUSHORT(self.data+22);
-    res.maxStackElements = bs:readUInt16();  -- ttUSHORT(self.data+24);
-    res.maxSizeOfInstructions = bs:readUInt16(); -- ttUSHORT(self.data+26);
-    res.maxComponentElements = bs:readUInt16(); -- ttUSHORT(self.data+28);
-    res.maxComponentDepth = bs:readUInt16(); -- ttUSHORT(self.data+30);
+    res.maxPoints = bs:readUInt16();
+    res.maxContours = bs:readUInt16();
+    res.maxComponentPoints = bs:readUInt16();
+    res.maxComponentContours = bs:readUInt16();
+    res.maxZones = bs:readUInt16();
+    res.maxTwilightPoints = bs:readUInt16();
+    res.maxStorage = bs:readUInt16();
+    res.maxFunctionDefs = bs:readUInt16();
+    res.maxInstructionDefs = bs:readUInt16();
+    res.maxStackElements = bs:readUInt16();
+    res.maxSizeOfInstructions = bs:readUInt16();
+    res.maxComponentElements = bs:readUInt16();
+    res.maxComponentDepth = bs:readUInt16();
 
 
     return res;
@@ -724,51 +728,6 @@ function OTTableReader.name(bs, toc, res)
     return res
 end
 
-
---[[
-        local fields = {
-        {name = "version", kind = "uint16"};
-        {name = "xAvgCharWidth", kind = "int16"};
-        {name = "usWeightClass", kind = "uint16"};
-        {name = "usWidthClass", kind = "uint16"};
-        {name = "fsType", kind = "uint16"};
-        {name = "ySubscriptXSize", kind = "int16"};
-        {name = "ySubscriptYSize", kind = "int16"};
-        {name = "ySubscriptXOffset", kind = "int16"};
-        {name = "ySubscriptYOffset", kind = "int16"};
-        {name = "ySuperscriptXSize", kind = "int16"};
-        {name = "ySuperscriptYSize", kind = "int16"};
-        {name = "ySuperscriptXOffset", kind = "int16"};
-        {name = "ySuperscriptYOffset", kind = "int16"};
-        {name = "yStrikeoutSize", kind = "int16"};
-        {name = "yStrikeoutPosition", kind = "int16"};
-        {name = "sFamilyClass", kind = "int16"};
-        {name = "panose", kind = "uint8", size=10};
-        {name = "ulUnicodeRange1", kind = "uint32"};
-        {name = "ulUnicodeRange2", kind = "uint32"};
-        {name = "ulUnicodeRange3", kind = "uint32"};
-        {name = "ulUnicodeRange4", kind = "uint32"};
-        {name = "achVendID", kind = "Tag"};
-        {name = "fsSelection", kind = "uint16"};
-        {name = "usFirstCharIndex", kind = "uint16"};
-        {name = "usLastCharIndex", kind = "uint16"};
-        {name = "sTypoAscender", kind = "int16"};
-        {name = "sTypoDescender", kind = "int16"};
-        {name = "sTypoLineGap", kind = "int16"};
-        {name = "usWinAscent", kind = "uint16"};
-        {name = "usWinDescent", kind = "uint16"};
-    }
-
-local function readFields(bs, fields, res)
-    res = res or {}
-    
-    for _, field in iparis(fields) do 
-        
-    end
-
-    return res;
-end
---]]
 
 OTTableReader['OS/2'] = function(bs, toc, res)
     res = res or {}

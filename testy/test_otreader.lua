@@ -3,8 +3,15 @@ package.path = "../?.lua;"..package.path;
 local OTReader = require("lj2tt.OTReader")
 local mmap = require("lj2tt.mmap_win32")
 
---local ffile = mmap("resources/FontAwesome.ttf")
-local ffile = mmap("resources/exo.extra-light-italic.otf")
+local ffile
+local filename = arg[1]
+if filename then
+    ffile = mmap(filename)
+else
+--ffile = mmap("resources/FontAwesome.ttf")
+    ffile = mmap("resources/exo.extra-light-italic.otf")
+end
+
 
 local function printIntValue(tbl, name)
     local value = tbl[name]
@@ -28,6 +35,48 @@ local function printFontTOC(font)
     print("        };")
     print("    };")
     print("};")
+end
+
+local function print_table_glyf(glyf)
+    --local glyphs = glyf.glyphs
+
+    local numGlyphs = glyf.numGlyphs;
+    print("glyphs = {")
+    local i = 0;
+    while (i < glyf.numGlyphs-2) do
+        local glyph = glyf.glyphs[i]
+        --print(string.format("Contours: %d", glyph.numberOfContours))
+        print(string.format("  [%d] = {", glyph.index))
+        print(string.format("    index = %d; ", glyph.index))
+        print(string.format("    simple = '%s'; ", (glyph.simple and "true") or "false"))
+        print(string.format("    contours = %d; ",glyph.numberOfContours))  
+        print(string.format("    numFlags = 0x%x;", glyph.numFlags))      
+        print(string.format("    bounds = {xMin = %d, yMin = %d, xMax=%d, yMax=%d};", glyph.xMin, glyph.yMin, glyph.xMax, glyph.yMax))
+
+---[[
+        -- Print out the actual points on the glyph
+        if glyph.numberOfContours > 0 and glyph.coords then
+            -- group printing of coordinates by contours
+            local lastPoint = 0
+            local nextLastPoint = 0
+            local contourCount = 1;
+            while contourCount <= glyph.numberOfContours do
+                nextLastPoint = glyph.contourEnds[contourCount]
+                print("CONTOUR: ", contourCount, nextLastPoint)
+                local ptCounter = lastPoint
+                while (ptCounter <= nextLastPoint) do
+                    print(string.format("    [%d] = {x = %d, y = %d};", ptCounter, glyph.coords[ptCounter].x, glyph.coords[ptCounter].y))
+                    ptCounter = ptCounter + 1;
+                end
+                lastPoint = nextLastPoint+1;
+                contourCount = contourCount + 1;
+            end
+        end
+
+        --printInstructions(glyph.instructions, glyph.instructionLength)
+--]]
+        i = i + 1;
+    end
 end
 
 local function print_table_GSUB(tbl)
@@ -157,15 +206,16 @@ end
 
 local function printFont(font)
     print("font = {")
-    --printFontTOC(font)
+    printFontTOC(font)
 
     -- print tables
-    --print_table_head(font.offsetTable.entries['head'])
-    --print_table_hhea(font.offsetTable.entries['hhea'])
-    --print_table_name(font.offsetTable.entries['name'])
+    print_table_head(font.offsetTable.entries['head'])
     --print_table_maxp(font.offsetTable.entries['maxp'])
+    --print_table_hhea(font.offsetTable.entries['hhea'])
+    print_table_name(font.offsetTable.entries['name'])
     --print_table_os2(font.offsetTable.entries['OS/2'])
-    print_table_GSUB(font.offsetTable.entries['GSUB'])
+    --print_table_GSUB(font.offsetTable.entries['GSUB'])
+    --print_table_glyf(font.offsetTable.entries['glyf'])
 
     print("};")
 end
