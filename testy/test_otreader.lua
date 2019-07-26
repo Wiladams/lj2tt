@@ -228,8 +228,8 @@ local function test_reader()
         return nil 
     end
 
-    --print("    sfntVersionTag = ", collection.sfntVersionTag)
-    --print("    sfntVersion = ", string.format("0x%08x", collection.sfntVersion))
+    print("    sfntVersionTag = ", collection.sfntVersionTag)
+    print("    sfntVersion = ", string.format("0x%08x", collection.sfntVersion))
 
     for _, font in ipairs(collection.fonts) do
         printFont(font)

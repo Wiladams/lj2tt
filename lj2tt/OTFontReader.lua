@@ -89,7 +89,7 @@ end
 
 
 local SCALER_TRUETYPE   = 0x00010000;
-local SCALER_OTTO       = 0x4F54544F;
+local SCALER_OTTO       = 0x4F54544F;   -- 'OTTO'
 
 function OTFontReader.readOffsetTable(self, bs, res)
     res = res or {}

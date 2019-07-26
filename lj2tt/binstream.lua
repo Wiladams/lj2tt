@@ -210,6 +210,33 @@ function binstream.octets(self)
     end)
 end
 
+--[[
+    readOperandInt()
+
+    Returns an operand encoding for the CFF table
+    First, read a single octet, which tells us what
+    size the integer should be.
+]]
+
+function binstream.readOperandInt(self)
+    local b0 = self:readOctet();
+
+    if (b0 >= 32 and b0 <= 246) then       
+        return b0 - 139;
+    elseif (b0 >= 247 and b0 <= 250) then
+        local b1 = self:readOctet();
+        return ((b0 - 247)*256) + b1 + 108;
+    elseif (b0 >= 251 and b0 <= 254) then
+        local b1 = self:readOctet();
+        return -((b0 - 251)*256) - b1 - 108;
+    elseif (b0 == 28) then
+        return self:readInt16();
+    elseif (b0 == 29) then
+        return self:readInt32();
+    end
+
+    return false, "unknown operand size"
+end
 
 -- Read an integer value
 -- The parameter 'n' determines how many bytes to read.
@@ -291,6 +318,18 @@ function binstream.readString(self, n)
     end
 
     return str;
+end
+
+-- 2 byte string identifier
+function binstream.readSID(self)
+    if self:remaining() < 2 then
+        return nil, 'not enough characters remain'
+    end
+
+    local str = ffi.string(self.data+self.cursor, 2)
+    self:skip(2)
+
+    return str
 end
 
 -- read a 4 character tag, and return it
@@ -502,5 +541,11 @@ binstream.readOffset32 = binstream.readUInt32;
 binstream.readBYTE = binstream.readOctet;
 binstream.readWORD = binstream.readUInt16;
 binstream.readDWORD = binstream.readUInt32;
+
+-- for CFF
+binstream.readCard8 = binstream.readUInt8;
+binstream.readCard16 = binstream.readUInt16;
+binstream.readOffSize = binstream.readUInt8;
+binstream.readOffset = binstream.readNumber;
 
 return binstream
