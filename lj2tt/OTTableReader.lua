@@ -224,6 +224,64 @@ end
 
 local OTTableReader = {}
 
+
+local function CFF_readIndex(bs, res)
+    res = res or {}
+
+    local start = bs:tell();
+
+    res.count = bs:readCard16();
+    res.offSize = bs:readOffSize();
+    assert(res.offSize >=1 and res.offSize <= 4)
+print("CFF_readIndex: ", res.count, res.offSize)
+
+    res.offset = {}
+
+    if res.count > 0 then
+        -- Read all the offsets, and accumulate
+        -- data size
+        local dataSize = 0;
+        for i=0,res.count-1 do
+            local offset = bs:readOffset(res.offSize)
+            print("OFFSET: ", offset)
+            res.offset[i] = offset
+        end
+    end
+--[[
+    if (count > 0) then
+        local offsize = stbtt__buf_get8(b);
+        STBTT_assert((offsize >= 1) and (offsize <= 4));
+        stbtt__buf_skip(b, offsize * count);
+        stbtt__buf_skip(b, stbtt__buf_get(b, offsize) - 1);
+    end
+   
+    return stbtt__buf_range(b, start, b.cursor - start);
+--]]
+end
+
+OTTableReader['CFF '] = function(bs, toc, res)
+    print("READING CFF")
+    res = res or {}
+
+    res.version = {
+        major = bs:readCard8();
+        minor = bs:readCard8();
+    }
+    res.hdrSize = bs:readCard8();
+    res.offSize = bs:readOffSize();
+
+    -- skip to the position right after the header size.
+    -- We're probably already there, but this is the spec
+    -- way to do it.
+    bs:seek(res.hdrSize)
+
+    -- Read name index
+    local nameIndex = CFF_readIndex(bs)
+    -- Read string index
+
+    return res
+end
+
 -- Read the contents of the 'cmap' table
 -- Although we can read the raw data for the 
 -- specified format, what really needs to happen here
@@ -240,7 +298,7 @@ local function read_cmap_format(cmap, bs, encodingRecord)
     -- The index to the table is the cmap sub-table format
     local formatMapper = {
         [0] = function(er)
-            print("CMAP FORMAT 0")
+            --print("CMAP FORMAT 0")
             er.length = bs:readUInt16();
             er.language = bs:readUInt16();
             er.index_map = ffi.new("uint8_t[?]", 256);
@@ -251,7 +309,7 @@ local function read_cmap_format(cmap, bs, encodingRecord)
         end;
 
         [4] = function(er)
-            print("CMAP FORMAT 4");
+            --print("CMAP FORMAT 4");
             er.length = bs:readUInt16();
             er.language = bs:readUInt16();
             -- and a whole lot more!!
@@ -306,7 +364,7 @@ function OTTableReader.cmap(bs, toc, res)
         read_cmap_format(res, bs, encodingRecord);
 
         if not res.encodings[platformID] then
-            print("NEW PLATFORM ID: ", platformID)
+            --print("NEW PLATFORM ID: ", platformID)
             res.encodings[platformID] = {}
         end
 
