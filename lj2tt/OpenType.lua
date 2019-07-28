@@ -13,7 +13,25 @@ local lookupFlagBitfield = {
     [0xff00] = 'makrAttachmentType'
 }
 
+local PlatformID = {
+    [0] = "unicode",
+    [1] = 'macintosh',
+    [3] = 'windows',
+}
 
+local WindowsEncodingID = {
+    [0] = "symbol",
+    [1] = "unicode bm[",
+    [2] = "shiftjis",
+    [3] = "prc",
+    [4] = "big5",
+    [5] = "wansung",
+    [6] = "johab",
+    [7] = "reserved1",
+    [8] = "reserved2",
+    [9] = "reserved3",
+    [10] = "unicode full",
+} 
 --[[
     Ideally there would be an easily downloadable form of the 
     following, rather than just the web page.  Need to watch for

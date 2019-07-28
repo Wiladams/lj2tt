@@ -30,3 +30,4 @@ https://github.com/Jolg42/awesome-typography
 
 Example Fonts
 https://www.1001fonts.com/exo-font.html
+https://www.amirifont.org/  -- Arabic

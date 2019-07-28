@@ -232,31 +232,43 @@ local function CFF_readIndex(bs, res)
 
     res.count = bs:readCard16();
     res.offSize = bs:readOffSize();
-    assert(res.offSize >=1 and res.offSize <= 4)
-print("CFF_readIndex: ", res.count, res.offSize)
+    print("CFF_readIndex, count, offSize, begin: ", res.count, res.offSize, res.count*res.offSize)
 
-    res.offset = {}
+    if res.count == 0 then
+        return res;
+    end
 
-    if res.count > 0 then
+    --assert(res.offSize >=1 and res.offSize <= 4)
+    --print("START: ", start)
+--print("TELL: ", bs:tell())
+
+    res.offsets = {}
+
         -- Read all the offsets, and accumulate
         -- data size
         local dataSize = 0;
-        for i=0,res.count-1 do
+        for i=0,res.count do
             local offset = bs:readOffset(res.offSize)
-            print("OFFSET: ", offset)
-            res.offset[i] = offset
+            --print("OFFSET: ", offset)
+            if i>0 then
+                local size = offset-res.offsets[i-1]
+                --print("SIZE: ", size)
+                dataSize = dataSize + size
+            end
+            res.offsets[i] = offset
         end
-    end
---[[
-    if (count > 0) then
-        local offsize = stbtt__buf_get8(b);
-        STBTT_assert((offsize >= 1) and (offsize <= 4));
-        stbtt__buf_skip(b, offsize * count);
-        stbtt__buf_skip(b, stbtt__buf_get(b, offsize) - 1);
-    end
-   
-    return stbtt__buf_range(b, start, b.cursor - start);
---]]
+        --print("DataSize: ", dataSize)
+--print("TELL, after reading indices: ", bs:tell())
+        res.values = {}
+        for i=1,res.count do
+            local size = res.offsets[i]-res.offsets[i-1]
+
+            local value = bs:readString(size)
+            print(string.format("'%s'",value))
+            table.insert(res.values, value)
+        end
+--print("TELL, after reading data: ", bs:tell())
+
 end
 
 OTTableReader['CFF '] = function(bs, toc, res)
@@ -276,9 +288,28 @@ OTTableReader['CFF '] = function(bs, toc, res)
     bs:seek(res.hdrSize)
 
     -- Read name index
-    local nameIndex = CFF_readIndex(bs)
-    -- Read string index
+    print("==== Name Index ====")
+    res.nameIndex = CFF_readIndex(bs)
+    -- top dict index
+    print("==== TOP DICT ====")
+    res.topDict = CFF_readIndex(bs)
 
+    -- string index
+    print("==== STRING INDEX ====")
+    res.stringIndex = CFF_readIndex(bs)
+
+    -- global subrs index
+    print("==== GLOBAL SUBRS INDEX")
+    res.globalSubrsIndex = CFF_readIndex(bs)
+
+    -- charstrings index
+    print("==== Charstrings INDEX ====")
+    res.charStringsIndex = CFF_readIndex(bs)
+
+    -- private dict
+    print("==== Private DICT ====")
+    res.privateDict = CFF_readIndex(bs)
+    
     return res
 end
 
@@ -291,10 +322,9 @@ end
 -- look at: stbtt_FindGlyphIndex
 --
 local function read_cmap_format(cmap, bs, encodingRecord)
-    --local ms = ttstream(cmap.data, cmap.length);
     bs:seek(encodingRecord.offset)
     
-    -- Table of functions for reading formats
+    -- Table of functions for reading subtables of cmap
     -- The index to the table is the cmap sub-table format
     local formatMapper = {
         [0] = function(er)
@@ -308,11 +338,47 @@ local function read_cmap_format(cmap, bs, encodingRecord)
             end
         end;
 
+        -- NEED FORMAT 2
+
         [4] = function(er)
             --print("CMAP FORMAT 4");
             er.length = bs:readUInt16();
             er.language = bs:readUInt16();
-            -- and a whole lot more!!
+            er.segCountX2 = bs:readUInt16();
+
+            local segCount = er.segCountX2 / 2;
+            --local searchRangeCount = 2*largestpo2 <= segCount;
+            --local entrySelectorCount = log2(32)
+            local rangeShiftCount = 2 * segCount - 64;
+
+            er.searchRange = bs:readUInt16();
+            er.entrySelector = bs:readUInt16();
+            er.rangeShift = bs:readUInt16();
+--[[
+            er.endCode = ffi.new("uint16_t[?]", segCount)
+            for i=1,segCount do
+                er.endCode[i-1] = bs:readUInt16();
+            end
+
+            local reserved = bs:readUInt16();   -- reserved padding
+
+            er.startCode = ffi.new("uint16_t[?]", segCount)
+            for i=1,segCount do
+                er.startCode[i-1] = bs:readUInt16();
+            end
+
+            er.idDelta = ffi.new("int16_t[?]", segCount)
+            for i=1,segCount do
+                er.idDelta[i-1] = bs:readInt16();
+            end
+
+            er.idRangeOffset = ffi.new("uint16_t[?]", segCount)
+            for i=1,segCount do
+                er.idRangeOffset[i-1] = bs:readUInt16();
+            end
+--]]
+            -- er.glyphIdArray[]
+            -- how to calculate size?
         end;
 
         [6] = function(er)
@@ -323,15 +389,25 @@ local function read_cmap_format(cmap, bs, encodingRecord)
             er.index_map = ffi.new("uint16_t[?]", er.entryCount);
 
             for i=0,er.entryCount-1 do
-                index_map[i] = bs:readUInt16();
+                er.index_map[i] = bs:readUInt16();
             end
         end;
+
+        -- FORMAT 8, mixed 16 and 32-bit coverage
+
+        -- FORMAT 10, trimmed array
+
+        -- FORMAT 12, Segmented coverage
+
+        -- FORMAT 13, Many to one range mappings
+
+        -- FORMAT 14, Unicode Variation Sequences
     }
     
     -- Get the format of the encoding record
     -- which will determine the remaining fields
     encodingRecord.format = bs:readUInt16();
-
+--print("CMAP, encodingRecord.format: ", encodingRecord.format)
     local formatter = formatMapper[encodingRecord.format]
     if not formatter then return false end
 
@@ -349,27 +425,37 @@ function OTTableReader.cmap(bs, toc, res)
     res.numTables = bs:readUInt16();     -- Number of encoding tables
     res.encodings = {};
 
+    --print("CMAP, numTables: ", res.numTables)
     -- Read 'numTables' worth of encoding records
     for i=1, res.numTables do
-        local platformID = bs:readUInt16();
-
+        local platformID = bs:readUInt16()
         local encodingRecord = {
             platformID = platformID;
             encodingID = bs:readUInt16();
             offset = bs:readUInt32();
         };
----[[
+        --print("CMAP, PlatformID, EncodingID: ", encodingRecord.platformID, encodingRecord.encodingID)
+
+        -- need to save current position if we're 
+        -- going to go read the sub-table right now
+        -- better to read the TOC, then read the data
+        local sentinel = bs:tell()
+
         -- Now that we have an offset
         -- we can read the details of the encoding
         read_cmap_format(res, bs, encodingRecord);
 
+        -- go back to original position
+        -- se we can read next table entry
+        bs:seek(sentinel)
+
+
         if not res.encodings[platformID] then
-            --print("NEW PLATFORM ID: ", platformID)
             res.encodings[platformID] = {}
         end
 
         table.insert(res.encodings[platformID], encodingRecord);
---]]
+
     end
 
     return res;
@@ -509,7 +595,7 @@ function OTTableReader.glyf(bs, toc, res)
     res = res or {}
 
     local numGlyphs = toc['maxp'].numGlyphs
-    local offsets = toc['loca'].offsets
+    local offsets = toc['loca'].entries
 --print("OTTableReader.glyf, offsets: ", offsets, #offsets, numGlyphs)
 
     res.numGlyphs = numGlyphs;
@@ -520,8 +606,9 @@ function OTTableReader.glyf(bs, toc, res)
     while i < numGlyphs-2 do
         local offset = offsets[i];
         --print("OFFSET: ", offsets[i])
-        bs:seek(offsets[i])
-
+        -- BUGBUG, should create a stream range, since we know
+        -- the size
+        bs:seek(offsets[i].offset)
 
         local glyph = {
             index = i;
@@ -531,19 +618,19 @@ function OTTableReader.glyf(bs, toc, res)
             xMax = bs:readInt16();
             yMax = bs:readInt16();
             };
----[[
+
         -- Based on the number of contours, we can figure out if 
         -- this is a simple glyph, or a compound glyph (combo of glyphs)
         -- contours < 0    glyph comprised of components
         -- contours == 0    has no glyph data, could be components (-1 recommended)
-        -- contours > 1
+        -- contours > 0     simple glyph
         local contourCount = glyph.numberOfContours
         if contourCount > 0 then
             readSimpleGlyph(glyph, bs)
         elseif contourCount < 0 then
             -- composite glyph
         end
---]]
+
         glyphs[i] = glyph;
         
         i = i + 1;
@@ -680,22 +767,33 @@ function OTTableReader.loca(bs, toc, res)
     local numGlyphs = toc['maxp'].numGlyphs
     local locFormat = toc['head'].indexToLocFormat;
 
-    res.offsets = {}
+    offsets = ffi.new("uint32_t[?]", numGlyphs+1)
+    res.entries = {}
+
 --print("loca, numGlyphs: ", numGlyphs)
 --print("loca, locFormat: ", locFormat)
 
+    -- First capture the offsets
     if locFormat == 0 then
-        for i = 0, numGlyphs-1 do
+        for i = 0, numGlyphs do
             local value = bs:readUInt16()*2;
             --print("loca, offset: ", i, value)
-            res.offsets[i] = value
+            offsets[i] = value
         end
     elseif locFormat == 1 then
-        for i = 0, numGlyphs-1 do
-            res.offsets[i] = bs:readUInt32();
+        for i = 0, numGlyphs do
+            offsets[i] = bs:readUInt32();
         end
     end
 
+    -- then create entry records which include the length
+    for i=0,numGlyphs-1 do
+        local size = offsets[i+1] - offsets[i]
+        local entry = {offset = offsets[i], size = size}
+        res.entries[i] = entry;
+    end
+
+print("LOCA, REMAINING: ", bs:remaining())
     return res
 end
 

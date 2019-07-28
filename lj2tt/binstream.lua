@@ -14,7 +14,8 @@
 ]]
 local ffi = require("ffi")
 local bit = require("bit")
-local bor, lshift = bit.bor, bit.lshift
+local bor, band = bit.bor, bit.band
+local lshift, rshift = bit.lshift, bit.rshift
 local min = math.min
 
 --[[
@@ -238,6 +239,20 @@ function binstream.readOperandInt(self)
     return false, "unknown operand size"
 end
 
+-- Meaning of nibbles above 9.
+local NibbleAbove9 = {
+  kDecimalPoint     = 0xA,
+  kPositiveExponent = 0xB,
+  kNegativeExponent = 0xC,
+  kReserved         = 0xD,
+  kMinusSign        = 0xE,
+  kEndOfNumber      = 0xF
+}
+
+
+function binstream.readCFFFloat(self)
+end
+
 -- Read an integer value
 -- The parameter 'n' determines how many bytes to read.
 -- 'n' can be up to 8 
@@ -415,14 +430,19 @@ function binstream.readUInt64(self)
 end
 
 -- Some various fixed formats
+-- fixed is 16.16
+
 function binstream.readFixed(self)
-    -- return self:readInt32 / bleft(1,16)
-    local value = self:readInt32()
-    --print("readFixed: ", string.format("0x%08x", value))
+    -- read it as a 32-bit signed integer
+    -- the reconstitute the number, while 
+    -- preserving the sign
+    local val = self:readInt32()
 
-    return value / 65535
+    -- the mantissa is the low 16 bits, but does
+    -- not have a sign, calculate a fraction
+    local mantissa = band(val, 0xffff)/65536
 
-    --return self:readInt32() / 65535
+    return ffi.cast("float", rshift(val,16)+mantissa)
 end
 
 function binstream.readFixedVersion(self)
@@ -431,8 +451,10 @@ function binstream.readFixedVersion(self)
 end
 
 function binstream.readF2Dot14(self)
-    --return self:readInt16() / bleft(1, 14)
-    return self:readInt16() / 16384;
+    local value = self:readInt16()
+    local mantissa = band(value, 0x3fff)/16384
+
+    return ffi.cast("float", (rshift(lshift(value,16),16+14))+mantissa)
 end
 
 function binstream.readDate(self)

@@ -216,17 +216,17 @@ end
 
 local function printFont(font)
     print("font = {")
-    printFontTOC(font)
+    --printFontTOC(font)
 
     -- print tables
-    print_table_head(font.offsetTable.entries['head'])
+    --print_table_head(font.offsetTable.entries['head'])
     --print_table_maxp(font.offsetTable.entries['maxp'])
     --print_table_hhea(font.offsetTable.entries['hhea'])
     --print_table_name(font.offsetTable.entries['name'])
     --print_table_os2(font.offsetTable.entries['OS/2'])
     --print_table_GSUB(font.offsetTable.entries['GSUB'])
-    --print_table_glyf(font.offsetTable.entries['glyf'])
-    print_table_CFF(font.offsetTable.entries['CFF '])
+    print_table_glyf(font.offsetTable.entries['glyf'])
+    --print_table_CFF(font.offsetTable.entries['CFF '])
 
     print("};")
 end
