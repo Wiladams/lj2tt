@@ -211,43 +211,9 @@ function binstream.octets(self)
     end)
 end
 
---[[
-    readOperandInt()
 
-    Returns an operand encoding for the CFF table
-    First, read a single octet, which tells us what
-    size the integer should be.
-]]
 
-function binstream.readOperandInt(self)
-    local b0 = self:readOctet();
 
-    if (b0 >= 32 and b0 <= 246) then       
-        return b0 - 139;
-    elseif (b0 >= 247 and b0 <= 250) then
-        local b1 = self:readOctet();
-        return ((b0 - 247)*256) + b1 + 108;
-    elseif (b0 >= 251 and b0 <= 254) then
-        local b1 = self:readOctet();
-        return -((b0 - 251)*256) - b1 - 108;
-    elseif (b0 == 28) then
-        return self:readInt16();
-    elseif (b0 == 29) then
-        return self:readInt32();
-    end
-
-    return false, "unknown operand size"
-end
-
--- Meaning of nibbles above 9.
-local NibbleAbove9 = {
-  kDecimalPoint     = 0xA,
-  kPositiveExponent = 0xB,
-  kNegativeExponent = 0xC,
-  kReserved         = 0xD,
-  kMinusSign        = 0xE,
-  kEndOfNumber      = 0xF
-}
 
 
 function binstream.readCFFFloat(self)

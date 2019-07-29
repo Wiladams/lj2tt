@@ -49,6 +49,10 @@ end
 
 local function print_table_glyf(glyf)
     --local glyphs = glyf.glyphs
+    if not glyf then
+        print("NO GLYF Table")
+        return false;
+    end
 
     local numGlyphs = glyf.numGlyphs;
     print("glyphs = {")
@@ -69,8 +73,8 @@ local function print_table_glyf(glyf)
             -- group printing of coordinates by contours
             local lastPoint = 0
             local nextLastPoint = 0
-            local contourCount = 1;
-            while contourCount <= glyph.numberOfContours do
+            local contourCount = 0;
+            while contourCount < glyph.numberOfContours do
                 nextLastPoint = glyph.contourEnds[contourCount]
                 print("CONTOUR: ", contourCount, nextLastPoint)
                 local ptCounter = lastPoint
@@ -216,7 +220,7 @@ end
 
 local function printFont(font)
     print("font = {")
-    --printFontTOC(font)
+    printFontTOC(font)
 
     -- print tables
     --print_table_head(font.offsetTable.entries['head'])

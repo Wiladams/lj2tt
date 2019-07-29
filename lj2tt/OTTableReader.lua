@@ -19,221 +19,21 @@ local bit = require("bit")
 local band, bor = bit.band, bit.bor
 local lshift, rshift = bit.lshift, bit.rshift
 
---[[
-    Common tables
-]]
-local function read_ScriptList(bs, res)
-    local function readScriptTable(bs, res)
-        local function readLangSysRecord(bs, res)
-            local function readLanguageSystemTable(bs, res)
-                res = res or {}
-                res.lookupOrder = bs:readOffset16();
-                res.requiredFeatureIndex = bs:readUInt16();
-                res.featureIndexCount = bs:readUInt16();
-                if res.featureIndexCount > 0 then
-                    res.featureIndices = {}
-                    for i=1, res.featureIndexCount do
-                        local value = bs:readUInt16();
-                        table.insert(res.featureIndices, value)
-                    end
-                end
-
-                return res
-            end
-
-            res = res or {}
-            res.langSysTag = bs:readTag();
-            res.langSysOffset = bs:readOffset16();
-            local ls = bs:getRange({position = res.langSysOffset})
-            res.langSysTable = readLanguageSystemTable(ls)
-
-            return res;
-        end
-
-        res = res or {}
-        res.defaultLangSys = bs:readOffset16();
-        res.langSysCount = bs:readUInt16();
-
-        if res.langSysCount > 0 then
-            res.langSysRecords = {};
-            for i=1, res.langSysCount do 
-                local rec = readLangSysRecord(bs);
-                table.insert(res.langSysRecords, rec);
-            end
-        end
-
-        return res;
-    end
-
-    local function readScriptRecord(bs, res)
-        res = res or {}
-        res.scriptTag = bs:readTag();
-        res.scriptOffset = bs:readOffset16();
-
-        return res;
-    end
-
-    -- This starts as a table of contents
-    -- for script records, so first read the 
-    -- table of contents records
-    res = res or {}
-    res.scriptCount = bs:readUInt16();
-    res.scriptRecords = {}
-    for i=1,res.scriptCount do
-        local rec = readScriptRecord(bs);
-        table.insert(res.scriptRecords, rec)
-    end
-
-    -- Now we have table of contents so read
-    -- the actual records for each entry 
-    for _, entry in ipairs(res.scriptRecords) do 
-        local ts, err = bs:getRange({position = entry.scriptOffset})
-        entry.scriptTable = readScriptTable(ts)
-    end
-
-
-    return res
-end
-
-local function read_FeatureList(bs, res)
-    
-    local function readFeatureTable(bs, res)
-        res = res or {}
-        res.featureParams = bs:readOffset16();
-        res.lookupIndexCount = bs:readUInt16();
-        res.lookupListIndices = {}
-
-        if res.lookupIndexCount > 0 then
-            for i=0, res.lookupIndexCount-1 do
-                res.lookupListIndices[i] = bs:readUInt16();
-            end
-        end
-
-        return res;
-    end
-
-    local function readFeatureRecord(bs, res)
-        res = res or {}
-        res.tag = bs:readTag();
-        res.featureOffset = bs:readOffset16();
-
-        return res;
-    end
-
-    
-    res = res or {}
-
-    -- First create the table of contents
-    res.featureCount = bs:readUInt16();
-    res.featureRecords = {}
-
-    if res.featureCount > 0 then
-        for i=0, res.featureCount - 1 do
-            res.featureRecords[i] = readFeatureRecord(bs)
-        end
-    end
-
-    -- Now use the table of contents to read the actual records
-    for _, entry in ipairs(res.featureRecords) do 
-        local fts = bs:getRange({position = entry.featureOffset})
-        entry.featureTable = readFeatureTable(fts)
-    end
-
-    return res;
-end
-
-
-local function read_LookupList(bs, res)
-
-    local function readCoverageTable(bs, res)
-        res = res or {}
-        res.coverageFormat = bs:readUInt16();
-        if res.coverageFormat == 1 then
-            res.glyphCount = bs:readUInt16();
-            res.glyphArray = {}
-            if res.glyphCount > 0 then
-                for i=0,res.glyphCount-1 do
-                    res.glyphArray[i] = bs:readUInt16();
-                end
-            end
-        elseif res.coverageFormat == 2 then
-            res.rangeCount = bs:readUInt16();
-            res.rangeRecords = {}
-            if res.rangeCount > 0 then
-                for i=0,res.rangeCount-1 do
-                    -- read a range record
-                    local rec = {
-                        startGlyphID = bs:readUInt16();
-                        endGlyphID = bs:readUInt16();
-                        startCoverageIndex = bs:readUInt16();
-                    }
-                    res.rangeRecords[i] = rec;
-                end
-            end
-        end
-
-        return res;
-    end
-
-    local function readLookupTable(bs, res)
-        res = res or {}
-        res.lookupType = bs:readUInt16();
-        res.lookupFlag = bs:readUInt16();
-        res.subtableCount = bs:readUInt16();
-        res.subtableOffsets = {}
-
-        if res.subtableCount > 0 then
-            for i=0,res.subtableCount-1 do
-                res.subtableOffsets[i] = bs:readOffset16();
-            end
-        end
-
-        -- if lookupFlag has GDEF flag set, then the
-        -- fillowing field exists
-        -- BUGBUG
-        --res.markFilteringSet = bs:readUInt16();
-
-        -- now we have table of contents, go read
-        -- the actual subtables
-
-        return res
-    end
-
-
-    res = res or {}
-
-    -- create the table of contents
-    res.lookupCount = bs:readUInt16();
-    res.lookups = {}
-    if res.lookupCount > 0 then
-        for i=0,res.lookupCount-1 do 
-            res.lookups[i] = {offset = bs:readOffset16()}
-        end
-    end
-
-    -- Now read individual lookup tables
-    for _, entry in ipairs(res.lookups) do
-        local lts = bs:getRange({position = entry.offset})
-        entry.lookup = readLookupTable(lts)
-    end
-
-
-    return res
-end
-
+local OpenType = require("lj2tt.OpenType")
 
 local OTTableReader = {}
 
 
-local function CFF_readIndex(bs, res)
+local function CFF_readIndex(bs, res, converter)
     res = res or {}
 
     local start = bs:tell();
 
     res.count = bs:readCard16();
     res.offSize = bs:readOffSize();
-    print("CFF_readIndex, count, offSize, begin: ", res.count, res.offSize, res.count*res.offSize)
+    --print("CFF_readIndex, count, offSize, begin: ", res.count, res.offSize, res.count*res.offSize)
 
+    -- if there's no count, there are no entries
     if res.count == 0 then
         return res;
     end
@@ -244,35 +44,39 @@ local function CFF_readIndex(bs, res)
 
     res.offsets = {}
 
-        -- Read all the offsets, and accumulate
-        -- data size
-        local dataSize = 0;
-        for i=0,res.count do
-            local offset = bs:readOffset(res.offSize)
-            --print("OFFSET: ", offset)
-            if i>0 then
-                local size = offset-res.offsets[i-1]
-                --print("SIZE: ", size)
-                dataSize = dataSize + size
-            end
-            res.offsets[i] = offset
+    -- Read all the offsets, and accumulate
+    -- data size
+    local dataSize = 0;
+    for i=0,res.count do
+        local offset = bs:readOffset(res.offSize)
+
+        if i>0 then
+            local size = offset-res.offsets[i-1]
+            --print("SIZE: ", size)
+            dataSize = dataSize + size
         end
+        res.offsets[i] = offset
+    end
         --print("DataSize: ", dataSize)
 --print("TELL, after reading indices: ", bs:tell())
-        res.values = {}
-        for i=1,res.count do
-            local size = res.offsets[i]-res.offsets[i-1]
+    res.objects = {}
+    for i=1,res.count do
+        local size = res.offsets[i]-res.offsets[i-1]
 
-            local value = bs:readString(size)
-            print(string.format("'%s'",value))
-            table.insert(res.values, value)
+        local bytes = bs:readBytes(size)
+        local value
+        if converter then
+            value = converter(bytes, size)
         end
---print("TELL, after reading data: ", bs:tell())
 
+        --print(string.format("'%s'",value))
+        table.insert(res.objects, value)
+    end
+--print("TELL, after reading data: ", bs:tell())
 end
 
 OTTableReader['CFF '] = function(bs, toc, res)
-    print("READING CFF")
+    --print("READING CFF")
     res = res or {}
 
     res.version = {
@@ -288,27 +92,27 @@ OTTableReader['CFF '] = function(bs, toc, res)
     bs:seek(res.hdrSize)
 
     -- Read name index
-    print("==== Name Index ====")
-    res.nameIndex = CFF_readIndex(bs)
+    --print("==== Name Index ====")
+    res.nameIndex = CFF_readIndex(bs, nil, ffi.string)
     -- top dict index
-    print("==== TOP DICT ====")
-    res.topDict = CFF_readIndex(bs)
+    --print("==== TOP DICT ====")
+    res.topDictIndex = CFF_readIndex(bs)
 
     -- string index
-    print("==== STRING INDEX ====")
-    res.stringIndex = CFF_readIndex(bs)
+    --print("==== STRING INDEX ====")
+    res.stringIndex = CFF_readIndex(bs, nil, ffi.string)
 
     -- global subrs index
-    print("==== GLOBAL SUBRS INDEX")
-    res.globalSubrsIndex = CFF_readIndex(bs)
+    --print("==== GLOBAL SUBRS INDEX")
+    res.globalSubrIndex = CFF_readIndex(bs)
 
     -- charstrings index
-    print("==== Charstrings INDEX ====")
-    res.charStringsIndex = CFF_readIndex(bs)
+    --print("==== Charstrings INDEX ====")
+    --res.charStringsIndex = CFF_readIndex(bs)
 
     -- private dict
-    print("==== Private DICT ====")
-    res.privateDict = CFF_readIndex(bs)
+    --print("==== Private DICT ====")
+    --res.privateDict = CFF_readIndex(bs)
     
     return res
 end
@@ -502,8 +306,8 @@ local function readSimpleGlyph(glyph, bs)
 
     -- grab the endpoints for each contour
     --debugit(26, glyph, "CONTOURS: %d", glyph.numberOfContours)
-    for cnt=1, glyph.numberOfContours do
-        glyph.contourEnds[cnt] = bs:readUInt16()
+    for i=0, glyph.numberOfContours-1 do
+        glyph.contourEnds[i] = bs:readUInt16()
         --debugit(26, glyph, "END: %d",glyph.contourEnds[cnt])
     end
 
@@ -513,18 +317,19 @@ local function readSimpleGlyph(glyph, bs)
     --glyph.instructions = bs:getString(glyph.instructionLength);
     glyph.instructions = bs:readBytes(glyph.instructionLength);
 
-    local noc  = glyph.contourEnds[glyph.numberOfContours]+1;
-    glyph.numFlags = noc;
-    glyph.numCoords = noc;
+    local numberOfCoordinates  = glyph.contourEnds[glyph.numberOfContours-1]+1;
+    glyph.numFlags = numberOfCoordinates;
+    glyph.numCoords = numberOfCoordinates;
     glyph.flags = {};
     local flags = glyph.flags;
 
 
     -- First, read all the flags
+    --debugit(26, glyph, "Number of Coords: %d", numberOfCoordinates)
     local i = 0;
     local offset = 0;
-    --debugit(26, glyph, "Number of Coords: %d", noc)
-    while ( i < noc) do
+
+    while ( i < numberOfCoordinates) do
         local flag = bs:readUInt8();
         assert(flag)
         --debugit(26, glyph, "FLAG: %d  0x%04x", i, flag)
@@ -559,7 +364,7 @@ local function readSimpleGlyph(glyph, bs)
     function readCoords(bs, name, byteFlag, deltaFlag, min, max) 
         local value = 0;
         local i = 0;
-        while( i < noc) do
+        while( i < numberOfCoordinates) do
             local flag = flags[i];
             local is8 = band(flag, byteFlag) ~= 0
             local same = band(flag, deltaFlag) ~= 0
@@ -604,11 +409,11 @@ function OTTableReader.glyf(bs, toc, res)
 
     local i = 0;
     while i < numGlyphs-2 do
-        local offset = offsets[i];
+        local offsetEntry = offsets[i];
         --print("OFFSET: ", offsets[i])
         -- BUGBUG, should create a stream range, since we know
         -- the size
-        bs:seek(offsets[i].offset)
+        bs:seek(offsetEntry.offset)
 
         local glyph = {
             index = i;
@@ -671,9 +476,9 @@ function OTTableReader.GSUB(bs, toc, res)
     --print("scriptListOffset: ", res.scriptListOffset)
 
     -- Now that we have offsets, we can read each type of thing
-    res.scriptList = read_ScriptList(bs:getRange({position = res.scriptListOffset}))
-    res.featureList = read_FeatureList(bs:getRange({position = res.featureListOffset}))
-    res.lookupList = read_LookupList(bs:getRange({position = res.lookupListOffset}))
+    res.scripts = OpenType.read_ScriptList(bs:getRange({position = res.scriptListOffset}))
+    res.features = OpenType.read_FeatureList(bs:getRange({position = res.featureListOffset}))
+    res.lookups = OpenType.read_LookupList(bs:getRange({position = res.lookupListOffset}))
 
     return res
 end
