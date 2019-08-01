@@ -212,13 +212,6 @@ function binstream.octets(self)
 end
 
 
-
-
-
-
-function binstream.readCFFFloat(self)
-end
-
 -- Read an integer value
 -- The parameter 'n' determines how many bytes to read.
 -- 'n' can be up to 8 
