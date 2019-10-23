@@ -9,32 +9,23 @@ local band, bor = bit.band, bit.bor
 local B = string.byte
 local C = string.char
 
--- Meaning of nibbles above 9.
-local NibbleAbove9 = {
-    kDecimalPoint     = 0xA,
-    kPositiveExponent = 0xB,
-    kNegativeExponent = 0xC,
-    kReserved         = 0xD,
-    kMinusSign        = 0xE,
-    kEndOfNumber      = 0xF
-  }
 
 local floatLookup = {
     [0] = '0',
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    [0xA] = '.',
-    [0xB] = 'E',
-    [0xC] = 'E-',
+    [1] = '1',
+    [2] = '2',
+    [3] = '3',
+    [4] = '4',
+    [5] = '5',
+    [6] = '6',
+    [7] = '7',
+    [8] = '8',
+    [9] = '9',
+    [0xA] = '.',    -- decimal point
+    [0xB] = 'E',    -- positive exponent
+    [0xC] = 'E-',   -- negative exponent
     [0xD] = '',     -- reserved
-    [0xE] = '-'
+    [0xE] = '-'     -- minus sign
     [0xF] = ''      -- end of number
 }
 local function parseFloatOperand(bs)
