@@ -5,6 +5,7 @@ parseTable: 	hhea    - parsed
 parseTable: 	name    - parsed
 parseTable: 	loca    - parsed
 
+parseTable:     cff     - partial
 parseTable: 	fpgm
 parseTable: 	prep
 parseTable: 	cvt 
@@ -24,96 +25,71 @@ local OpenType = require("lj2tt.OpenType")
 local OTTableReader = {}
 
 
-local function CFF_readIndex(bs, res, converter)
-    res = res or {}
+local cff_reader = require("lj2tt.read_cff")
 
-    local start = bs:tell();
+--[[
+    References:
+    https://wwwimages2.adobe.com/content/dam/acom/en/devnet/font/pdfs/5176.CFF.pdf
 
-    res.count = bs:readCard16();
-    res.offSize = bs:readOffSize();
-    --print("CFF_readIndex, count, offSize, begin: ", res.count, res.offSize, res.count*res.offSize)
-
-    -- if there's no count, there are no entries
-    if res.count == 0 then
-        return res;
-    end
-
-    --assert(res.offSize >=1 and res.offSize <= 4)
-    --print("START: ", start)
---print("TELL: ", bs:tell())
-
-    res.offsets = {}
-
-    -- Read all the offsets, and accumulate
-    -- data size
-    local dataSize = 0;
-    for i=0,res.count do
-        local offset = bs:readOffset(res.offSize)
-
-        if i>0 then
-            local size = offset-res.offsets[i-1]
-            --print("SIZE: ", size)
-            dataSize = dataSize + size
-        end
-        res.offsets[i] = offset
-    end
-        --print("DataSize: ", dataSize)
---print("TELL, after reading indices: ", bs:tell())
-    res.objects = {}
-    for i=1,res.count do
-        local size = res.offsets[i]-res.offsets[i-1]
-
-        local bytes = bs:readBytes(size)
-        local value
-        if converter then
-            value = converter(bytes, size)
-        end
-
-        --print(string.format("'%s'",value))
-        table.insert(res.objects, value)
-    end
---print("TELL, after reading data: ", bs:tell())
-end
-
+    Layout
+    Header
+    Name INDEX
+    Top DICT INDEX
+    String INDEX
+    Global Subr INDEX
+    Encodings
+    Charsets
+    FDSelect            -- CIDFonts only
+    CharStrings INDEX   -- per-font
+    Font DICT INDEX     -- per-font, CIDFonts only
+    Private DICT        -- per-font
+    Local Subr INDEX    -- per-font or per-Private DICT for CIDFonts
+    Copyright and Trademark Notices
+]]
 OTTableReader['CFF '] = function(bs, toc, res)
     --print("READING CFF")
     res = res or {}
 
-    res.version = {
-        major = bs:readCard8();
-        minor = bs:readCard8();
-    }
-    res.hdrSize = bs:readCard8();
-    res.offSize = bs:readOffSize();
+    res = cff_reader.readHeader(bs, res)
 
     -- skip to the position right after the header size.
     -- We're probably already there, but this is the spec
     -- way to do it.
-    bs:seek(res.hdrSize)
+    bs:seek(res.headerSize)
 
     -- Read name index
-    --print("==== Name Index ====")
-    res.nameIndex = CFF_readIndex(bs, nil, ffi.string)
+    print("==== Name Index ====")
+    res.nameIndex = cff_reader.readIndex(bs, nil, ffi.string)
+    
     -- top dict index
-    --print("==== TOP DICT ====")
-    res.topDictIndex = CFF_readIndex(bs)
+    print("==== TOP DICT ====")
+    res.topDictIndex = cff_reader.readIndex(bs)
 
     -- string index
-    --print("==== STRING INDEX ====")
-    res.stringIndex = CFF_readIndex(bs, nil, ffi.string)
+    print("==== STRING INDEX ====")
+    res.stringIndex = cff_reader.readIndex(bs, nil, ffi.string)
 
     -- global subrs index
-    --print("==== GLOBAL SUBRS INDEX")
-    res.globalSubrIndex = CFF_readIndex(bs)
+    print("==== GLOBAL SUBRS INDEX")
+    res.globalSubrIndex = cff_reader.readIndex(bs)
+
+    -- encodings
+    -- charsets
+    -- FDSelect
 
     -- charstrings index
-    --print("==== Charstrings INDEX ====")
-    --res.charStringsIndex = CFF_readIndex(bs)
+    print("==== Charstrings INDEX ====")
+    res.charStringsIndex = cff_reader.readIndex(bs)
+
+    -- fontDict INDEX
 
     -- private dict
     --print("==== Private DICT ====")
-    --res.privateDict = CFF_readIndex(bs)
+    --res.privateDict = cff_reader.readIndex(bs)
     
+    -- LSubR INDEX
+    -- Copyright and trademark notices
+
     return res
 end
 

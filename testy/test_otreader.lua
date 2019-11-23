@@ -41,9 +41,9 @@ local function print_table_CFF(tbl)
     if not tbl then return false end
 
     print("CFF = {")
-    print(string.format("  version = {%d.%d};", tbl.version.major, tbl.version.minor))
-    print(string.format("  hdrSize = %d;", tbl.hdrSize))
-    print(string.format("  offSize = %d;", tbl.offSize))
+    print(string.format("  major = %d;  minor = %d;", tbl.version.major, tbl.version.minor))
+    print(string.format("  headerSize = %d;", tbl.headerSize))
+    print(string.format("  offsetSize = %d;", tbl.offsetSize))
     print("};")
 end
 
@@ -230,7 +230,7 @@ local function printFont(font)
     --print_table_os2(font.offsetTable.entries['OS/2'])
     --print_table_GSUB(font.offsetTable.entries['GSUB'])
     print_table_glyf(font.offsetTable.entries['glyf'])
-    --print_table_CFF(font.offsetTable.entries['CFF '])
+    print_table_CFF(font.offsetTable.entries['CFF '])
 
     print("};")
 end
