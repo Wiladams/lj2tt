@@ -1,7 +1,13 @@
 
 
 --[[
-	Stack
+    Stack
+    
+    A basic stack with push/pop, but with some specialization
+    typically used in stack based languages.
+
+    In the case of fonts, it can make processing Postscript
+    fonts easier.
 --]]
 local Stack = {}
 setmetatable(Stack,{
@@ -33,6 +39,10 @@ end
 
 --[[
     Operand stack operators
+
+    Count the number of entries on top of the stack
+    down to a 'mark'.  Do not include the 'mark' in
+    the count.
 ]]
 function Stack.countToMark(self, amark)
     amark = amark or "STACK:MARKER"
@@ -76,6 +86,28 @@ function Stack.exch(self)
     self:push(b)
 end
 
+--[[
+    mark
+
+    Push a marker on the stack.  If no specific
+    mark is specified, the default string of
+    'STACK:MARKER' is pushed.
+]]
+function Stack.mark(self, amark)
+    amark = amark or "STACK:MARKER"
+    self:push(amark)
+    
+    return amark
+end
+
+--[[
+    push
+
+    Push a single item onto the top of the stack.
+    You can not push a 'nil' item onto the stack.  Instead,
+    you must create some specified to be a nil value, like
+    a string such as "STACK:NULL".
+]]
 function Stack.push(self, value)
 	local last = self.last + 1
 	self.last = last
@@ -84,7 +116,14 @@ function Stack.push(self, value)
 	return self
 end
 
--- push multiple elements onto the stack at once
+--[[
+    pushn
+
+    Push a number of operands on the stack.
+
+    stk:pushn(1,2,3,4,5,6,7)
+]]
+
 function Stack.pushn(self, ...)
     local n = select('#',...)
     for i=1,n do
@@ -94,13 +133,13 @@ function Stack.pushn(self, ...)
     return self
 end
 
-function Stack.mark(self, amark)
-    amark = amark or "STACK:MARKER"
-    self:push(amark)
-    
-    return amark
-end
+--[[
+    pop
 
+    Pop a single item off the top of the stack
+    If no item is there, a 'nil' is returned
+    with a 'stack underflow' error message.
+]]
 function Stack.pop(self)
 	local last = self.last
 	if self.first > last then
@@ -113,6 +152,24 @@ function Stack.pop(self)
 	return value
 end
 
+--[[
+    popn
+
+    Pop a number of items off the stack at once.  They will
+    be returned in FIFO order.  That is, if you had performed
+    the operations:
+    stk:push(1)
+    stk:push(2)
+    stk:push(3)
+
+    Then;
+    stk:popn(3)
+
+    will return:
+
+    1, 2, 3
+
+]]
 function Stack.popn(self, n)
     local tmp = {}
     for i=1,n do
@@ -170,9 +227,15 @@ function Stack.roll(self,n,j)
     return self
 end
 
+--[[
+    top
+    
+    return what's at the top of the stack without
+    popping it off.  This is essentially a 'peek'
+    operation.
+]]
 function Stack.top(self)
-	-- return what's at the top of the stack without
-	-- popping it off
+
 	local last = self.last
 	if self.first > last then
 		return nil, "list is empty"
@@ -181,8 +244,15 @@ function Stack.top(self)
 	return self[last]
 end
 
--- BUGBUG
--- need to do error checking
+--[[
+    nth
+
+    Return the 'nth' item from the top of the
+    stack.
+
+    Similar to 'top', it does not affect the items
+    on the stack.
+--]]
 function Stack.nth(self, n)
 	if n < 0 then return nil end
 
@@ -192,8 +262,31 @@ function Stack.nth(self, n)
 	
 	return self[idx]
 end
+
 --[[
-    return non-destructive iterator of elements
+    elements
+
+    return non-destructive iterator of elements on
+    the stack.
+
+    Items returned from this iterator are in LIFO
+    order, which is the oposite of what you get if
+    you use popn.
+
+    Also, this is an iterator, rather than a single
+    call that returns multiple values.
+
+    stk:push(1, 2, 3)
+    for _, element in stk:elements() do
+        print(element)
+    end
+
+    Will print:
+
+    3
+    2
+    1
+
 ]]
 function Stack.elements(self)
 	local function gen(param, state)

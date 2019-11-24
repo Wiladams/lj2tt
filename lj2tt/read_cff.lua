@@ -5,13 +5,48 @@ local ffi = require("ffi")
 local bit = require("bit")
 local lshift, rshift = bit.lshift, bit.rshift
 local band, bor = bit.band, bit.bor
+local Stack = require("lj2tt.stack")
 
 local B = string.byte
 local C = string.char
 
+-- A convenience for creating a set based on 
+-- a string
+local function setCreate(str)
+    local bytes = {string.byte(str,1,#str)}
+    local res = {}
+    for i=1,#str do
+        res[bytes[i]] = true
+    end
+
+    return res
+end
+
+local function setCreateRange(low, high, res)
+    res = res or {}
+    for i=low, high do
+        res[i] = true
+    end
+
+    return res
+end
+
+-- Create this operand set so it's much easier 
+-- to determine from a single byte whether we've
+-- got an operator or not.
+local OperandSet = setCreate("\x1C\x1D\x1E")
+setCreateRange(32,254, OperandSet)
+
+--[[
+    OperatorSet
+    A set that allows us to quickly determine whether
+    we've got an operator based on a single value
+]]
+local OperatorSet = createRangeSet(0,21)
+
 
 local TOPDictionaryOperators = {
-    [0x0000] = "Version",
+    [0x0000] = "version",
     [0x0001] = "Notice",
     [0x0002] = "FullName",
     [0x0003] = "FamilyName",
@@ -62,7 +97,7 @@ local floatLookup = {
     [0xF] = '',      -- end of number
 }
 local function parseFloatOperand(bs)
-    local eon = 0xF
+    local eon = 0xF -- End Of Number
 
     local s = {}
     while true do
@@ -70,6 +105,7 @@ local function parseFloatOperand(bs)
         local nib1 = rshift(oc,4)
         local nib2 = band(oc,0x0f) 
 
+        --print("OC, nib1, nib2: ", oc, nib1, nib2)
         if nib1 == eon then
             break;
         end
@@ -104,22 +140,13 @@ end
     operator may be preceded by up to 48 operands
 ]]
 
+
 local function readOperand(bs)
     local b0 = bs:readOctet();
 
-    if b0 < 22 then
-        -- values [0..21] are operators
-        -- a value of 12 indicates an extended operator
-        local op = b0
-        if b0 == 12 then
-            -- read one more byte to form 
-            -- an extended operator value
-            local b1 = bs:readOctet()
-            op = bor(lshift(op,8), b1)
-        end
+--print(string.format("b0: 0x%02x", b0))
 
-        return op
-    elseif (b0 == 28) then
+    if (b0 == 28) then
         return bs:readInt16();
     elseif (b0 == 29) then
         return bs:readInt32();
@@ -138,24 +165,52 @@ local function readOperand(bs)
     return false, "unknown operand size"
 end
 
+--[[
+    b0 values [0..21] are operators
+    a b0 value of 12 indicates an extended operator
+]]
+local function readOperator(bs, b0)
+    b0 = b0 or bs:readOctet();
+
+    if b0 > 21 then return nil, "readOperator, outside valid range" end
+
+    local op = b0
+    if b0 == 12 then
+        -- read one more byte to form 
+        -- an extended operator value
+        local b1 = bs:readOctet()
+        op = bor(lshift(op,8), b1)
+    end
+
+    return op
+end
 
 
+
+--[[
+    readIndex
+
+    Read index values.
+]]
 local function readIndex(bs, res, converter)
     res = res or {}
 
+    -- keep a sentinel so we remember where we started
     local start = bs:tell();
 
+    -- how many index values are there?
     res.count = bs:readCard16();
     local headerSize = 2
 
+    -- how many bytes are used to indicate offsets?
     res.offsetSize = bs:readOffSize();
-    print("readIndex, offsetSize: ", res.offsetSize)
-
+    --print("readIndex, offsetSize: ", res.offsetSize)
     headerSize = headerSize + 1;
+
     local offsetArraySize = res.offsetSize * (res.count + 1)
     local totalIndexSize = headerSize + offsetArraySize;
 
-    --print("CFF_readIndex, count, offsetSize, begin: ", res.count, res.offsetSize, res.count*res.offsetSize)
+    print("CFF_readIndex, count, offsetSize, begin: ", res.count, res.offsetSize, res.count*res.offsetSize)
 
     -- if there's no count, there are no entries
     if res.count == 0 then
@@ -165,7 +220,7 @@ local function readIndex(bs, res, converter)
     --assert(res.offsetSize >=1 and res.offsetSize <= 4)
     --print("START: ", start)
 --print("TELL: ", bs:tell())
-
+    -- create array that will hold offsets
     res.offsets = {}
 
     -- Read all the offsets, and accumulate
@@ -202,6 +257,45 @@ local function readIndex(bs, res, converter)
 --print("TELL, after reading data: ", bs:tell())
 end
 
+--[[
+    readDict
+
+    Read a dictionary.  The operands are turned into their
+    name equivalents for easy lookup.
+]]
+local function readDict(bs, res)
+    res = res or {}
+
+    local opstack = Stack()
+
+    while not bs:isEOF() do
+        local operand = nil
+        local operator = nil
+
+        -- peek a byte
+        local b0 = bs:peekOctet()
+        if OperandSet[b0] then
+            -- save an operand on the operand stack
+            local op = readOperand(bs)
+            opstack:push(op)
+        elseif OperatorSet[c] then
+            -- it's an operator
+            -- get the name of the operator and store
+            -- that as a key in the dictionary
+            -- using the array of values of operand stack as value
+            local op = readOperator(bs)
+            local opname = TOPDictionaryOperators[op]
+            local value = {opstack:popn(opstack:length())}
+            res[opname] = value
+
+            -- clear the operand stack so we can start over
+            opstack:clear()
+        end
+        -- decide whether it's an operand or operator
+    end
+
+    return res
+end
 
 local function readHeader(bs, res)
     res = res or {}
@@ -212,9 +306,9 @@ local function readHeader(bs, res)
     }
     res.headerSize = bs:readCard8();
 
-    print("cff.readHeader") 
-    print("  version: ", res.version.major, res.version.minor)
-    print("  header size: ", res.headerSize)
+    --print("cff.readHeader") 
+    --print("  version: ", res.version.major, res.version.minor)
+    --print("  header size: ", res.headerSize)
 
     -- If version.major == 1 then
     res.offsetSize = bs:readOffSize();
@@ -225,6 +319,7 @@ end
 
 local exports = {
     readOperand = readOperand;
+    readDictionary = readDict;
     readHeader = readHeader;
     readIndex = readIndex;
 }

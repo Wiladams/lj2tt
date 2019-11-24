@@ -25,7 +25,7 @@ local binstream = require("lj2tt.binstream")
 local function test_operand_int()
     local vectors = {
         {"\x8b", "\\x8b", 0},
-        {"\x1f", "\\x1f", 1},
+
         {"\xef", "\\xef",100},
         {"\x27", "\\x27",-100},
         {"\xfa\x7c", "\\xfa\\x7c",1000},
@@ -47,6 +47,8 @@ local function test_operand_real()
     print("==== test_operand_real ====")
 
     local vectors = {
+        {"\x1e\x1f", "\\x1e\\x1f", 1},
+        {"\x1e\x00\x0A\x1F", "\\1e\\x00\\x0A\\x1F", 0.1},
         {"\x1e\xe2\xa2\x5f", "\\x1e\\xe2\\xa2\\x5f",-2.25},
         {"\x1E\x0A\x14\x05\x41\xC3\xFF", "\\x1E\\x0A\\x14\\x05\\x41\\xC3\\xFF", 0.140541E-3},
     }
@@ -59,7 +61,7 @@ local function test_operand_real()
 
 end
 
-test_operand_int()
+--test_operand_int()
 test_operand_real()
 
 
