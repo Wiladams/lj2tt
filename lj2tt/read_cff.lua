@@ -1,5 +1,9 @@
 --[[
     Functions specific to reading CFF table
+
+    References
+    https://github.com/photopea/Typr.js/blob/gh-pages/src/tabs/cff.js
+
 ]]
 local ffi = require("ffi")
 local bit = require("bit")
@@ -46,18 +50,18 @@ local OperatorSet = createRangeSet(0,21)
 
 
 local TOPDictionaryOperators = {
-    [0x0000] = "version",
-    [0x0001] = "Notice",
-    [0x0002] = "FullName",
-    [0x0003] = "FamilyName",
-    [0x0004] = "Weight",
-    [0x0005] = "FontBBox",
-    [0x000D] = "UniqueID",
-    [0x000E] = "XUID",
-    [0x000F] = "Charset",
-    [0x0010] = "Encoding",
-    [0x0011] = "CharStrings",
-    [0x0012] = "Private",
+    [0x0000] = "version",               -- SID
+    [0x0001] = "Notice",                -- SID
+    [0x0002] = "FullName",              -- SID
+    [0x0003] = "FamilyName",            -- SID
+    [0x0004] = "Weight",                -- SID
+    [0x0005] = "FontBBox",              -- array
+    [0x000D] = "UniqueID",              -- number
+    [0x000E] = "XUID",                  -- array
+    [0x000F] = "charset",               -- number
+    [0x0010] = "Encoding",              -- number
+    [0x0011] = "CharStrings",           -- number
+    [0x0012] = "Private",               -- number
 
     [0x0C00] = "Copyright",             -- SID
     [0x0C01] = "isFixedPitch",          -- boolean
@@ -75,6 +79,17 @@ local TOPDictionaryOperators = {
     [0x0C15] = "Postscript",           -- SID
     [0x0C16] = "BaseFontName",         -- SID
     [0x0C17] = "BaseFontBlend",        -- delta
+
+    -- CIDFont specific operators
+    [0x0C1E] = "ROS",                   -- SID SID number
+    [0x0C1F] = "CIDFontVersion",        -- number
+    [0x0C20] = "CIDFontRevision",       -- number
+    [0x0C21] = "CIDFontType",           -- number
+    [0x0C22] = "CIDCount",              -- number
+    [0x0C23] = "UIDBase",               -- number
+    [0x0C24] = "FDArray",               -- number
+    [0x0C25] = "FDSelect",              -- number
+    [0x0C26] = "FontName",              -- SID
 }
 
 
@@ -186,6 +201,33 @@ local function readOperator(bs, b0)
 end
 
 
+local function stringConverter(bs)
+    return bs:readString(bs:remaining())
+end
+
+
+local function readData(bs, hdr, converter, res)
+    res = res or {}
+
+    for i=1,hdr.count do
+        local size = hdr.offsets[i]-hdr.offsets[i-1]
+
+        --local value = bs:readBytes(size)
+        local vbs = bs:range(size)
+
+        if converter then
+            value = converter(vbs)
+        else
+            value = vbs:readBytes(vbs:remaining())
+        end
+
+        --print("readIndex, value: ", value)
+        --table.insert(res, value)
+        res[i] = value
+
+        bs:skip(size)
+    end
+end
 
 --[[
     readIndex
@@ -241,19 +283,8 @@ local function readIndex(bs, res, converter)
     
     --print("DataSize: ", dataSize)
     --print("TELL, after reading indices: ", bs:tell())
-    res.objects = {}
-    for i=1,res.count do
-        local size = res.offsets[i]-res.offsets[i-1]
+    res.objects = readData(bs, res, converter)
 
-        local value = bs:readBytes(size)
-        
-        if converter then
-            value = converter(value, size)
-        end
-
-        --print("readIndex, value: ", value)
-        table.insert(res.objects, value)
-    end
 --print("TELL, after reading data: ", bs:tell())
 end
 
@@ -322,6 +353,7 @@ local exports = {
     readDictionary = readDict;
     readHeader = readHeader;
     readIndex = readIndex;
+    readData = readData;
 }
 
 return exports
