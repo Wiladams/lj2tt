@@ -46,7 +46,7 @@ setCreateRange(32,254, OperandSet)
     A set that allows us to quickly determine whether
     we've got an operator based on a single value
 ]]
-local OperatorSet = createRangeSet(0,21)
+local OperatorSet = setCreateRange(0,21)
 
 
 local TOPDictionaryOperators = {
@@ -202,9 +202,56 @@ end
 
 
 local function stringConverter(bs)
-    return bs:readString(bs:remaining())
+    local value = bs:readString(bs:remaining())
+    print("stringConverter: ", value)
+
+    return value 
 end
 
+
+
+
+--[[
+    readDict
+
+    Read a dictionary.  The operands are turned into their
+    name equivalents for easy lookup.
+]]
+local function readDict(bs, res)
+    res = res or {}
+
+    print("readDict - BEGIN")
+
+    local opstack = Stack()
+
+    while not bs:isEOF() do
+        local operand = nil
+        local operator = nil
+
+        -- peek a byte
+        local b0 = bs:peekOctet()
+        if OperandSet[b0] then
+            -- save an operand on the operand stack
+            local op = readOperand(bs)
+            opstack:push(op)
+        elseif OperatorSet[c] then
+            -- it's an operator
+            -- get the name of the operator and store
+            -- that as a key in the dictionary
+            -- using the array of values of operand stack as value
+            local op = readOperator(bs)
+            local opname = TOPDictionaryOperators[op]
+            local value = {opstack:popn(opstack:length())}
+            res[opname] = value
+
+            -- clear the operand stack so we can start over
+            opstack:clear()
+        end
+        -- decide whether it's an operand or operator
+    end
+
+    return res
+end
 
 local function readData(bs, hdr, converter, res)
     res = res or {}
@@ -212,7 +259,6 @@ local function readData(bs, hdr, converter, res)
     for i=1,hdr.count do
         local size = hdr.offsets[i]-hdr.offsets[i-1]
 
-        --local value = bs:readBytes(size)
         local vbs = bs:range(size)
 
         if converter then
@@ -288,45 +334,7 @@ local function readIndex(bs, res, converter)
 --print("TELL, after reading data: ", bs:tell())
 end
 
---[[
-    readDict
 
-    Read a dictionary.  The operands are turned into their
-    name equivalents for easy lookup.
-]]
-local function readDict(bs, res)
-    res = res or {}
-
-    local opstack = Stack()
-
-    while not bs:isEOF() do
-        local operand = nil
-        local operator = nil
-
-        -- peek a byte
-        local b0 = bs:peekOctet()
-        if OperandSet[b0] then
-            -- save an operand on the operand stack
-            local op = readOperand(bs)
-            opstack:push(op)
-        elseif OperatorSet[c] then
-            -- it's an operator
-            -- get the name of the operator and store
-            -- that as a key in the dictionary
-            -- using the array of values of operand stack as value
-            local op = readOperator(bs)
-            local opname = TOPDictionaryOperators[op]
-            local value = {opstack:popn(opstack:length())}
-            res[opname] = value
-
-            -- clear the operand stack so we can start over
-            opstack:clear()
-        end
-        -- decide whether it's an operand or operator
-    end
-
-    return res
-end
 
 local function readHeader(bs, res)
     res = res or {}
@@ -347,6 +355,54 @@ local function readHeader(bs, res)
     return res;
 end
 
+local function readCFF(bs, toc, res)
+    res = res or {}
+
+    local hdr = readHeader(bs)
+    res.header = hdr
+
+    -- skip to the position right after the header size.
+    -- We're probably already there, but this is the spec
+    -- way to do it.
+    bs:seek(hdr.headerSize)
+
+    -- Read name index
+    print("==== Name Index ====")
+    res.nameIndex = readIndex(bs, nil, stringConverter)
+    
+    -- top dict index
+    print("==== TOP DICT ====")
+    --res.topDictIndex = readIndex(bs, nil, readDict)
+    res.topDictIndex = readIndex(bs)
+
+    -- string index
+    print("==== STRING INDEX ====")
+    res.stringIndex = readIndex(bs, nil, stringConverter)
+--[[
+    -- global subrs index
+    print("==== GLOBAL SUBRS INDEX")
+    res.globalSubrIndex = readIndex(bs)
+
+    -- encodings
+    -- charsets
+    -- FDSelect
+
+    -- charstrings index
+    print("==== Charstrings INDEX ====")
+    res.charStringsIndex = readIndex(bs)
+
+    -- fontDict INDEX
+
+    -- private dict
+    --print("==== Private DICT ====")
+    --res.privateDict = readIndex(bs)
+    
+    -- LSubR INDEX
+    -- Copyright and trademark notices
+--]]
+
+    return res
+end
 
 local exports = {
     readOperand = readOperand;
@@ -354,6 +410,7 @@ local exports = {
     readHeader = readHeader;
     readIndex = readIndex;
     readData = readData;
+    readCFF = readCFF;
 }
 
 return exports

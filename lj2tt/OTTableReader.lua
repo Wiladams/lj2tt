@@ -48,8 +48,9 @@ local cff_reader = require("lj2tt.read_cff")
 ]]
 OTTableReader['CFF '] = function(bs, toc, res)
     --print("READING CFF")
-    res = res or {}
+    res = cff_reader.readCFF(bs, toc, res)
 
+--[[
     res = cff_reader.readHeader(bs, res)
 
     -- skip to the position right after the header size.
@@ -89,7 +90,7 @@ OTTableReader['CFF '] = function(bs, toc, res)
     
     -- LSubR INDEX
     -- Copyright and trademark notices
-
+--]]
     return res
 end
 

@@ -6,11 +6,11 @@ package.path = "../?.lua;"..package.path;
 
 local cff = require("lj2tt.read_cff")
 local binstream = require("lj2tt.binstream")
+local hutil = require("hexutil")
 
 --[[
     
-    PASS_ENTRY("\xE2\xA2\x5F"            ,-2.25       ),
-    PASS_ENTRY("\x0A\x14\x05\x41\xC3\xFF", 0.140541e-3),
+
     PASS_ENTRY("\x0F"                    , 0          ),
     PASS_ENTRY("\x00\x0F"                , 0          ),
     PASS_ENTRY("\x00\x0A\x1F"            , 0.1        ),
@@ -19,13 +19,12 @@ local binstream = require("lj2tt.binstream")
     PASS_ENTRY("\x12\x34\x5F"            , 12345      ),
     PASS_ENTRY("\x12\x34\x5A\xFF"        , 12345      ),
     PASS_ENTRY("\x12\x34\x5A\x00\xFF"    , 12345      ),
-    PASS_ENTRY("\x12\x34\x5A\x67\x89\xFF", 12345.6789 ),
+
     PASS_ENTRY("\xA1\x23\x45\x67\x89\xFF", .123456789 ),
 ]]
 local function test_operand_int()
     local vectors = {
         {"\x8b", "\\x8b", 0},
-
         {"\xef", "\\xef",100},
         {"\x27", "\\x27",-100},
         {"\xfa\x7c", "\\xfa\\x7c",1000},
@@ -47,16 +46,20 @@ local function test_operand_real()
     print("==== test_operand_real ====")
 
     local vectors = {
-        {"\x1e\x1f", "\\x1e\\x1f", 1},
-        {"\x1e\x00\x0A\x1F", "\\1e\\x00\\x0A\\x1F", 0.1},
-        {"\x1e\xe2\xa2\x5f", "\\x1e\\xe2\\xa2\\x5f",-2.25},
-        {"\x1E\x0A\x14\x05\x41\xC3\xFF", "\\x1E\\x0A\\x14\\x05\\x41\\xC3\\xFF", 0.140541E-3},
+        {"1e 1f", 1},
+        {"1e 00 0A 1F", 0.1},
+        {"1e e2 a2 5f",-2.25},
+        {"1E 0A 14 05 41 C3 FF", 0.140541E-3},
+        {"1e 12 34 5A 67 89 FF", 12345.6789},
+        {"10 00 0f", 10000}
+
     }
 
-    for _, vec in ipairs(vectors) do 
-        local bs = binstream(vec[1])
+    for _, vec in ipairs(vectors) do
+        local bin = hutil.hexToBin(vec[1])
+        local bs = binstream(bin)
         local val = cff.readOperand(bs)
-        print("decode real: ", val == vec[3], vec[2], val, vec[3])
+        print("decode real: ", val == vec[2], vec[1], val, vec[2])
     end 
 
 end

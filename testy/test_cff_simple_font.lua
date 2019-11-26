@@ -1,15 +1,18 @@
-local data = require("cff_simple_font")
+package.path = "../?.lua;"..package.path;
 
-local function hex_dump(buf, len)
-    len = len or #buf
+local font = require("cff_simple_font")
+local binstream = require("lj2tt.binstream")
+local OTTableReader = require("lj2tt.OTTableReader")
 
-    for byte=1, #buf, 16 do
-       local chunk = buf:sub(byte, byte+15)
-       io.write(string.format('%08X  ',byte-1))
-       chunk:gsub('.', function (c) io.write(string.format('%02X ',string.byte(c))) end)
-       io.write(string.rep(' ',3*(16-#chunk)))
-       io.write(' ',chunk:gsub('%c','.'),"\n") 
-    end
- end
+local cff_parser = OTTableReader['CFF ']
+local hutil = require("hexutil")
 
-hex_dump(data)
+local hex_dump = hutil.hex_dump
+
+print("Parsing Simple Font")
+local bs = binstream(font.binString, #font.binString)
+
+hex_dump(font.binString)
+
+--print("cff parser: ", cff_parser)
+local font = cff_parser(bs)
