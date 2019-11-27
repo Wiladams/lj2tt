@@ -12,12 +12,12 @@ https://docs.microsoft.com/en-us/typography/opentype/spec/font-file
 
 
 Adobe
-http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5176.CFF.pdf
-http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5177.Type2.pdf
+[Technical Note 5176 - Compact Font Format](http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5176.CFF.pdf)
+[Technical Note 5177](http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5177.Type2.pdf)
 
 
-Let's Read a TrueType Font
-http://stevehanov.ca/blog/index.php?id=143
+[Let's Read a TrueType Font]
+(http://stevehanov.ca/blog/index.php?id=143)
 
 Implementations
 https://github.com/photopea/Typr.js
