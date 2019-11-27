@@ -16,7 +16,7 @@ Microsoft Reference docs
 
 Adobe
 * [Technical Note 5176 - Compact Font Format](http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5176.CFF.pdf)
-* [Technical Note 5177](http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5177.Type2.pdf)
+* [Technical Note 5177 - The Type 2 Charstring Forat](http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5177.Type2.pdf)
 
 
 
