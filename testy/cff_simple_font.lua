@@ -27,6 +27,12 @@ local data = ""
 .."\xf7\x8e\x14"
 
 
+--[[
+    You can use a hexstring like this:
+
+    local hexutil = require("hexutil")
+    local bin = hexutil.hexToBin(hexString)
+]]
 local hexString = [[
  0100 0401 0001 0101 1341 4243 4445 462b
  5469 6d65 732d 526f 6d61 6e00 0101 011f
