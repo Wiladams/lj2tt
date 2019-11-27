@@ -16,7 +16,7 @@ Adobe
 [Technical Note 5177](http://wwwimages.adobe.com/www.adobe.com/content/dam/acom/en/devnet/font/pdfs/5177.Type2.pdf)
 
 
-![Let's Read a TrueType Font](http://stevehanov.ca/blog/index.php?id=143)
+[Let's Read a TrueType Font](http://stevehanov.ca/blog/index.php?id=143)
 
 Implementations
 ---------------
